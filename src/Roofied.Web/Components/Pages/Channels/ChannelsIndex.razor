@@ -13,32 +13,43 @@
 {
     <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
 }
+else if (_channels.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 text-center mud-text-secondary">
+        <MudText>No channels are available yet.</MudText>
+    </MudPaper>
+}
 else
 {
-    <MudGrid>
-        @foreach (var c in _channels)
-        {
-            <MudItem xs="12" md="6">
-                <MudCard Outlined="true" Class="h-100">
-                    <MudCardContent>
-                        <div class="d-flex align-center" style="gap:8px;">
-                            <MudIcon Icon="@Icons.Material.Filled.Forum" Color="Color.Primary" />
-                            <MudText Typo="Typo.h6">@c.Name</MudText>
-                            @if (c.IsLocked)
-                            {
-                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Locked</MudChip>
-                            }
+    <MudPaper Outlined="true">
+        <MudList T="string" Class="py-0">
+            @for (var i = 0; i < _channels.Count; i++)
+            {
+                var c = _channels[i];
+                <MudListItem T="string" Href="@($"/channels/{c.Slug}")" Icon="@Icons.Material.Filled.Forum">
+                    <div class="d-flex align-center justify-space-between" style="gap:16px;">
+                        <div style="min-width:0;">
+                            <div class="d-flex align-center" style="gap:8px;">
+                                <MudText Typo="Typo.subtitle1">@c.Name</MudText>
+                                @if (c.IsLocked)
+                                {
+                                    <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Locked</MudChip>
+                                }
+                            </div>
+                            <MudText Typo="Typo.body2" Class="mud-text-secondary">@c.Description</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@c.ApprovedPostCount @(c.ApprovedPostCount == 1 ? "post" : "posts")</MudText>
                         </div>
-                        <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@c.Description</MudText>
-                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@c.ApprovedPostCount posts</MudChip>
-                    </MudCardContent>
-                    <MudCardActions>
-                        <MudButton Href="@($"/channels/{c.Slug}")" Color="Color.Primary" Variant="Variant.Text">Open</MudButton>
-                    </MudCardActions>
-                </MudCard>
-            </MudItem>
-        }
-    </MudGrid>
+                        <MudButton Href="@($"/channels/{c.Slug}")" Variant="Variant.Filled" Color="Color.Primary"
+                                   EndIcon="@Icons.Material.Filled.ChevronRight" Style="flex:0 0 auto;">Open</MudButton>
+                    </div>
+                </MudListItem>
+                @if (i < _channels.Count - 1)
+                {
+                    <MudDivider />
+                }
+            }
+        </MudList>
+    </MudPaper>
 }
 
 @code {
