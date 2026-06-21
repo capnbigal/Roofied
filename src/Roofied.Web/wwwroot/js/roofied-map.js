@@ -3,6 +3,21 @@
 window.roofiedMap = (function () {
     const instances = {};
 
+    // Best-effort: center the map near the user via the browser geolocation API.
+    // Falls back silently to the server-provided default if denied/unavailable.
+    // `skip()` lets callers cancel the recenter once data-driven bounds have taken over.
+    function geolocate(map, skip, zoom) {
+        if (!navigator.geolocation) return;
+        navigator.geolocation.getCurrentPosition(
+            function (pos) {
+                if (typeof skip === "function" && skip()) return;
+                map.setView([pos.coords.latitude, pos.coords.longitude], zoom || 11);
+            },
+            function () { /* permission denied or unavailable: keep the default view */ },
+            { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }
+        );
+    }
+
     function init(elementId, options) {
         if (!window.L) {
             console.error("Leaflet not loaded");
@@ -26,9 +41,12 @@ window.roofiedMap = (function () {
         const cluster = L.markerClusterGroup({ showCoverageOnHover: false });
         map.addLayer(cluster);
 
-        instances[elementId] = { map, cluster };
+        instances[elementId] = { map, cluster, hasPoints: false };
         // Leaflet sometimes needs a nudge when rendered inside a flex/hidden container.
         setTimeout(() => map.invalidateSize(), 200);
+
+        // Center near the user, unless approved reports are already plotted (their bounds win).
+        geolocate(map, () => instances[elementId] && instances[elementId].hasPoints, 11);
     }
 
     function setPoints(elementId, points) {
@@ -54,7 +72,8 @@ window.roofiedMap = (function () {
         });
         inst.cluster.addLayers(markers);
 
-        if (markers.length > 0) {
+        inst.hasPoints = markers.length > 0;
+        if (inst.hasPoints) {
             try { inst.map.fitBounds(inst.cluster.getBounds().pad(0.2)); } catch (e) { /* ignore */ }
         }
     }
@@ -96,6 +115,9 @@ window.roofiedMap = (function () {
 
         instances[elementId] = { map, cluster: null };
         setTimeout(() => map.invalidateSize(), 200);
+
+        // Center the picker near the user so they can pick a nearby point (no marker auto-placed).
+        geolocate(map, null, 13);
     }
 
     return { init, setPoints, dispose, initPicker };
