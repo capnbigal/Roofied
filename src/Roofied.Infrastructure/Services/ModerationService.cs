@@ -16,7 +16,7 @@ using Roofied.Infrastructure.Persistence;
 namespace Roofied.Infrastructure.Services;
 
 public sealed class ModerationService(
-    RoofiedDbContext db,
+    IDbContextFactory<RoofiedDbContext> dbFactory,
     ILocationPrecisionService precision,
     IHtmlSanitizer sanitizer,
     IClock clock,
@@ -34,6 +34,7 @@ public sealed class ModerationService(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Reports.AsNoTracking().AsQueryable();
         query = status is { } s
             ? query.Where(r => r.Status == s)
@@ -64,6 +65,7 @@ public sealed class ModerationService(
 
     public async Task<ModeratorReportDetailDto?> GetReportForModerationAsync(Guid reportId, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var r = await db.Reports.AsNoTracking()
             .Include(x => x.ReportCategory)
             .Include(x => x.VenueCategory)
@@ -136,6 +138,7 @@ public sealed class ModerationService(
 
     public async Task<OperationResult> ApproveReportAsync(ApproveReportInput input, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var report = await db.Reports
             .Include(r => r.PreciseLocation)
             .Include(r => r.PublicLocation)
@@ -153,7 +156,7 @@ public sealed class ModerationService(
         var label = string.IsNullOrWhiteSpace(input.GeneralizedAreaLabel)
             ? BuildAreaLabel(report)
             : sanitizer.SanitizePlainText(input.GeneralizedAreaLabel);
-        ApplyPublicLocation(report, input.PrecisionMetersOverride, label);
+        ApplyPublicLocation(db, report, input.PrecisionMetersOverride, label);
 
         // Replace safety tags with the moderator-approved set.
         if (report.SafetyTags.Count > 0)
@@ -161,7 +164,7 @@ public sealed class ModerationService(
         foreach (var tag in input.SafetyTags.Select(t => sanitizer.SanitizePlainText(t)).Where(t => !string.IsNullOrWhiteSpace(t)).Distinct())
             db.ReportSafetyTags.Add(new ReportSafetyTag { ReportId = report.Id, Label = tag });
 
-        TransitionTo(report, ReportStatus.Approved, "Approved and published.");
+        TransitionTo(db, report, ReportStatus.Approved, "Approved and published.");
         report.PublishedUtc = clock.UtcNow;
         ResolveCases(report);
 
@@ -182,6 +185,7 @@ public sealed class ModerationService(
 
     public async Task<OperationResult> RedactNarrativeAsync(Guid reportId, string redactedNarrative, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var restricted = await db.ReportRestricted.FirstOrDefaultAsync(r => r.ReportId == reportId, ct);
         if (restricted is null)
             return OperationResult.Fail("Report content not found.");
@@ -194,6 +198,7 @@ public sealed class ModerationService(
 
     public async Task<OperationResult> AdjustPrecisionAsync(Guid reportId, int gridSizeMeters, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var report = await db.Reports
             .Include(r => r.PreciseLocation)
             .Include(r => r.PublicLocation)
@@ -203,7 +208,7 @@ public sealed class ModerationService(
         if (report.PreciseLocation?.ExactLatitude is null)
             return OperationResult.Fail("This report has no precise location to generalize.");
 
-        ApplyPublicLocation(report, gridSizeMeters, report.PublicLocation?.GeneralizedAreaLabel ?? BuildAreaLabel(report));
+        ApplyPublicLocation(db, report, gridSizeMeters, report.PublicLocation?.GeneralizedAreaLabel ?? BuildAreaLabel(report));
         await db.SaveChangesAsync(ct);
         await audit.LogAsync("Report.PrecisionAdjusted", currentUser.UserId, currentUser.DisplayName, nameof(Report),
             reportId.ToString(), $"Precision set to {gridSizeMeters}m.", ipHash: currentUser.IpHash, ct: ct);
@@ -212,6 +217,7 @@ public sealed class ModerationService(
 
     public async Task<OperationResult> AddNoteAsync(Guid reportId, string text, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var moderationCase = await db.ModerationCases.FirstOrDefaultAsync(c => c.ReportId == reportId, ct);
         if (moderationCase is null)
         {
@@ -235,6 +241,7 @@ public sealed class ModerationService(
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.ChannelPosts.AsNoTracking().AsQueryable();
         query = status is { } s ? query.Where(p => p.Status == s) : query.Where(p => p.Status == ChannelPostStatus.PendingReview);
 
@@ -300,6 +307,7 @@ public sealed class ModerationService(
     {
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.ContentFlags.AsNoTracking().AsQueryable();
         query = status is { } s ? query.Where(f => f.Status == s) : query.Where(f => f.Status == FlagStatus.Open);
         var total = await query.CountAsync(ct);
@@ -313,6 +321,7 @@ public sealed class ModerationService(
 
     public async Task<OperationResult> ResolveFlagAsync(Guid flagId, string resolutionNote, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var flag = await db.ContentFlags.FirstOrDefaultAsync(f => f.Id == flagId, ct);
         if (flag is null) return OperationResult.Fail("Flag not found.");
         flag.Status = FlagStatus.Resolved;
@@ -327,6 +336,7 @@ public sealed class ModerationService(
 
     public async Task<OperationResult> DismissFlagAsync(Guid flagId, string reason, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var flag = await db.ContentFlags.FirstOrDefaultAsync(f => f.Id == flagId, ct);
         if (flag is null) return OperationResult.Fail("Flag not found.");
         flag.Status = FlagStatus.Dismissed;
@@ -344,6 +354,7 @@ public sealed class ModerationService(
     private async Task<OperationResult> SimpleTransitionAsync(
         Guid reportId, ReportStatus to, string reason, string auditAction, CancellationToken ct, bool alsoNote = false)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var report = await db.Reports.Include(r => r.ModerationCases).FirstOrDefaultAsync(r => r.Id == reportId, ct);
         if (report is null)
             return OperationResult.Fail("Report not found.");
@@ -351,7 +362,7 @@ public sealed class ModerationService(
             return OperationResult.Fail($"Cannot move report from {report.Status} to {to}.");
 
         var cleanReason = sanitizer.SanitizePlainText(reason);
-        TransitionTo(report, to, cleanReason);
+        TransitionTo(db, report, to, cleanReason);
 
         if (to is ReportStatus.Rejected or ReportStatus.Archived)
         {
@@ -360,7 +371,7 @@ public sealed class ModerationService(
         }
         if (alsoNote)
         {
-            var moderationCase = report.ModerationCases.FirstOrDefault() ?? AddCase(report);
+            var moderationCase = report.ModerationCases.FirstOrDefault() ?? AddCase(db, report);
             db.ModerationNotes.Add(new ModerationNote
             {
                 ModerationCaseId = moderationCase.Id,
@@ -377,6 +388,7 @@ public sealed class ModerationService(
 
     private async Task<OperationResult> UpdatePostAsync(Guid postId, Action<ChannelPost> mutate, string auditAction, CancellationToken ct)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var post = await db.ChannelPosts.FirstOrDefaultAsync(p => p.Id == postId, ct);
         if (post is null) return OperationResult.Fail("Post not found.");
         mutate(post);
@@ -386,7 +398,7 @@ public sealed class ModerationService(
         return OperationResult.Success();
     }
 
-    private void TransitionTo(Report report, ReportStatus to, string? reason)
+    private void TransitionTo(RoofiedDbContext db, Report report, ReportStatus to, string? reason)
     {
         var from = report.Status;
         report.Status = to;
@@ -401,7 +413,7 @@ public sealed class ModerationService(
         });
     }
 
-    private void ApplyPublicLocation(Report report, int? gridOverride, string? label)
+    private void ApplyPublicLocation(RoofiedDbContext db, Report report, int? gridOverride, string? label)
     {
         if (report.PreciseLocation?.ExactLatitude is not { } lat || report.PreciseLocation.ExactLongitude is not { } lon)
             return;
@@ -440,7 +452,7 @@ public sealed class ModerationService(
         }
     }
 
-    private ModerationCase AddCase(Report report)
+    private ModerationCase AddCase(RoofiedDbContext db, Report report)
     {
         var c = new ModerationCase { ReportId = report.Id, State = ModerationCaseState.InProgress };
         db.ModerationCases.Add(c);

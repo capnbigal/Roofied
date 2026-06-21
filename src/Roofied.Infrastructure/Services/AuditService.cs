@@ -1,4 +1,5 @@
 using System.Text.Json;
+using Microsoft.EntityFrameworkCore;
 using Roofied.Application.Abstractions;
 using Roofied.Domain.Audit;
 using Roofied.Infrastructure.Persistence;
@@ -6,7 +7,7 @@ using Roofied.Infrastructure.Persistence;
 namespace Roofied.Infrastructure.Services;
 
 /// <summary>Persists append-only audit entries. Never store sensitive report text or precise location.</summary>
-public sealed class AuditService(RoofiedDbContext db) : IAuditService
+public sealed class AuditService(IDbContextFactory<RoofiedDbContext> dbFactory) : IAuditService
 {
     public async Task LogAsync(
         string action,
@@ -19,7 +20,8 @@ public sealed class AuditService(RoofiedDbContext db) : IAuditService
         string? ipHash = null,
         CancellationToken ct = default)
     {
-        var entry = new AuditLog
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        db.AuditLogs.Add(new AuditLog
         {
             Action = action,
             ActorUserId = actorUserId,
@@ -29,8 +31,7 @@ public sealed class AuditService(RoofiedDbContext db) : IAuditService
             Summary = Truncate(summary, 1000),
             MetadataJson = metadata is null ? null : Truncate(JsonSerializer.Serialize(metadata), 4000),
             IpHash = ipHash,
-        };
-        db.AuditLogs.Add(entry);
+        });
         await db.SaveChangesAsync(ct);
     }
 

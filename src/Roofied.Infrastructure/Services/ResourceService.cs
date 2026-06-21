@@ -8,13 +8,14 @@ using Roofied.Infrastructure.Persistence;
 namespace Roofied.Infrastructure.Services;
 
 public sealed class ResourceService(
-    RoofiedDbContext db,
+    IDbContextFactory<RoofiedDbContext> dbFactory,
     IHtmlSanitizer sanitizer,
     ICurrentUser currentUser,
     IAuditService audit) : IResourceService
 {
     public async Task<IReadOnlyList<ResourceDto>> GetPublishedAsync(string? region = null, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Resources.AsNoTracking().Where(r => r.IsPublished);
         if (!string.IsNullOrWhiteSpace(region))
             query = query.Where(r => r.Region == null || r.Region == region);
@@ -24,19 +25,26 @@ public sealed class ResourceService(
             .Select(Project()).ToListAsync(ct);
     }
 
-    public async Task<IReadOnlyList<ResourceDto>> GetAllAsync(CancellationToken ct = default) =>
-        await db.Resources.AsNoTracking()
+    public async Task<IReadOnlyList<ResourceDto>> GetAllAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.Resources.AsNoTracking()
             .OrderBy(r => r.Category).ThenBy(r => r.SortOrder).ThenBy(r => r.Title)
             .Select(Project()).ToListAsync(ct);
+    }
 
-    public async Task<ResourceDto?> GetAsync(Guid id, CancellationToken ct = default) =>
-        await db.Resources.AsNoTracking().Where(r => r.Id == id).Select(Project()).FirstOrDefaultAsync(ct);
+    public async Task<ResourceDto?> GetAsync(Guid id, CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.Resources.AsNoTracking().Where(r => r.Id == id).Select(Project()).FirstOrDefaultAsync(ct);
+    }
 
     public async Task<OperationResult<Guid>> UpsertAsync(ResourceInput input, CancellationToken ct = default)
     {
         if (string.IsNullOrWhiteSpace(input.Title))
             return OperationResult<Guid>.Fail("Title is required.");
 
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         Resource entity;
         if (input.Id is { } id)
         {
@@ -67,6 +75,7 @@ public sealed class ResourceService(
 
     public async Task<OperationResult> DeleteAsync(Guid id, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var entity = await db.Resources.FirstOrDefaultAsync(r => r.Id == id, ct);
         if (entity is null) return OperationResult.Fail("Resource not found.");
         db.Resources.Remove(entity); // soft-deleted via SaveChanges interceptor

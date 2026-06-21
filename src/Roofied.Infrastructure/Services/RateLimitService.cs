@@ -12,7 +12,8 @@ namespace Roofied.Infrastructure.Services;
 /// Durable sliding-window rate limiter backed by the database, keyed by a hashed client identifier.
 /// Complements the ASP.NET in-memory rate limiter middleware (which guards raw request volume).
 /// </summary>
-public sealed class RateLimitService(RoofiedDbContext db, IClock clock, IOptions<RateLimitOptions> options)
+public sealed class RateLimitService(
+    IDbContextFactory<RoofiedDbContext> dbFactory, IClock clock, IOptions<RateLimitOptions> options)
     : IRateLimitService
 {
     private readonly RateLimitOptions _options = options.Value;
@@ -23,6 +24,8 @@ public sealed class RateLimitService(RoofiedDbContext db, IClock clock, IOptions
         var rule = Resolve(action);
         var now = clock.UtcNow;
         var windowStart = now.AddMinutes(-rule.WindowMinutes);
+
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
 
         var count = await db.AbuseRateLimitEvents
             .Where(e => e.Action == action && e.ClientKey == clientKey && e.OccurredUtc >= windowStart)

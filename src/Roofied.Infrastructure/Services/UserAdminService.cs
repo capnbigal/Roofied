@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Roofied.Application.Abstractions;
 using Roofied.Application.Admin;
 using Roofied.Application.Common;
@@ -8,9 +9,13 @@ using Roofied.Infrastructure.Persistence;
 
 namespace Roofied.Infrastructure.Services;
 
+/// <summary>
+/// Administers users/roles. Because ASP.NET Identity's <see cref="UserManager{T}"/> is bound to a
+/// scoped DbContext (unsafe to hold for a whole Blazor circuit), each operation runs inside its own
+/// short-lived DI scope.
+/// </summary>
 public sealed class UserAdminService(
-    RoofiedDbContext db,
-    UserManager<ApplicationUser> userManager,
+    IServiceScopeFactory scopeFactory,
     ICurrentUser currentUser,
     IAuditService audit) : IUserAdminService
 {
@@ -19,11 +24,15 @@ public sealed class UserAdminService(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 100);
 
+        using var scope = scopeFactory.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<RoofiedDbContext>();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
         var query = db.Users.AsNoTracking().AsQueryable();
         if (!string.IsNullOrWhiteSpace(search))
         {
             var term = search.Trim();
-            query = query.Where(u => (u.Email != null && EF.Functions.Like(u.Email, $"%{term}%")));
+            query = query.Where(u => u.Email != null && EF.Functions.Like(u.Email, $"%{term}%"));
         }
 
         var total = await query.CountAsync(ct);
@@ -48,6 +57,9 @@ public sealed class UserAdminService(
 
     public async Task<OperationResult> SetRolesAsync(string userId, IReadOnlyList<string> roles, CancellationToken ct = default)
     {
+        using var scope = scopeFactory.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return OperationResult.Fail("User not found.");
 
@@ -69,14 +81,15 @@ public sealed class UserAdminService(
 
     public async Task<OperationResult> SetDisabledAsync(string userId, bool disabled, CancellationToken ct = default)
     {
+        using var scope = scopeFactory.CreateScope();
+        var userManager = scope.ServiceProvider.GetRequiredService<UserManager<ApplicationUser>>();
+
         var user = await userManager.FindByIdAsync(userId);
         if (user is null) return OperationResult.Fail("User not found.");
         user.IsDisabled = disabled;
-        if (disabled)
-            user.LockoutEnd = DateTimeOffset.MaxValue;
-        else
-            user.LockoutEnd = null;
+        user.LockoutEnd = disabled ? DateTimeOffset.MaxValue : null;
         await userManager.UpdateAsync(user);
+
         await audit.LogAsync("User.DisabledChanged", currentUser.UserId, currentUser.DisplayName, nameof(ApplicationUser),
             userId, $"Disabled={disabled}", ipHash: currentUser.IpHash, ct: ct);
         return OperationResult.Success();

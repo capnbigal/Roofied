@@ -15,7 +15,7 @@ using Roofied.Infrastructure.Persistence;
 namespace Roofied.Infrastructure.Services;
 
 public sealed class ReportService(
-    RoofiedDbContext db,
+    IDbContextFactory<RoofiedDbContext> dbFactory,
     IValidator<ReportSubmissionInput> validator,
     IHtmlSanitizer sanitizer,
     IPiiDetectionService pii,
@@ -116,6 +116,7 @@ public sealed class ReportService(
             });
         }
 
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         db.Reports.Add(report);
 
         db.ConsentRecords.Add(new ConsentRecord
@@ -144,6 +145,7 @@ public sealed class ReportService(
 
     public async Task<IReadOnlyList<PublicMapPointDto>> GetMapPointsAsync(PublicReportFilter filter, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Reports.AsNoTracking()
             .Where(PublicReportProjections.IsPubliclyVisible)
             .Where(r => r.PublicLocation != null);
@@ -153,6 +155,7 @@ public sealed class ReportService(
 
     public async Task<PagedResult<PublicReportListItemDto>> GetPublicListAsync(PublicReportFilter filter, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.Reports.AsNoTracking().Where(PublicReportProjections.IsPubliclyVisible);
         query = ApplyFilter(query, filter);
 
@@ -172,6 +175,7 @@ public sealed class ReportService(
 
     public async Task<PublicReportDetailDto?> GetPublicDetailAsync(Guid id, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Reports.AsNoTracking()
             .Where(PublicReportProjections.IsPubliclyVisible)
             .Where(r => r.Id == id)
@@ -181,6 +185,7 @@ public sealed class ReportService(
 
     public async Task<IReadOnlyList<MyReportDto>> GetMyReportsAsync(string userId, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Reports.AsNoTracking()
             .Where(r => r.CreatedByUserId == userId)
             .OrderByDescending(r => r.CreatedUtc)
@@ -201,6 +206,7 @@ public sealed class ReportService(
 
     public async Task<OperationResult> WithdrawAsync(Guid reportId, string userId, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var report = await db.Reports.FirstOrDefaultAsync(r => r.Id == reportId && r.CreatedByUserId == userId, ct);
         if (report is null)
             return OperationResult.Fail("Report not found.");

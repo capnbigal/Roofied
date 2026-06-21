@@ -1,4 +1,5 @@
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 using Roofied.Application.Abstractions;
 using Roofied.Application.Common;
 using Roofied.Application.Flags;
@@ -9,7 +10,7 @@ using Roofied.Infrastructure.Persistence;
 namespace Roofied.Infrastructure.Services;
 
 public sealed class ContentFlagService(
-    RoofiedDbContext db,
+    IDbContextFactory<RoofiedDbContext> dbFactory,
     IValidator<ContentFlagInput> validator,
     IHtmlSanitizer sanitizer,
     IRateLimitService rateLimiter,
@@ -31,6 +32,7 @@ public sealed class ContentFlagService(
         if (!rate.Allowed)
             return OperationResult.Fail("You have reported several items recently. Please try again later.");
 
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         db.ContentFlags.Add(new ContentFlag
         {
             ContentType = input.ContentType,

@@ -12,7 +12,7 @@ using Roofied.Infrastructure.Persistence;
 namespace Roofied.Infrastructure.Services;
 
 public sealed class ChannelService(
-    RoofiedDbContext db,
+    IDbContextFactory<RoofiedDbContext> dbFactory,
     IValidator<ChannelPostInput> validator,
     IHtmlSanitizer sanitizer,
     IPiiDetectionService pii,
@@ -23,6 +23,7 @@ public sealed class ChannelService(
 {
     public async Task<IReadOnlyList<ChannelDto>> GetChannelsAsync(CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Channels.AsNoTracking()
             .Where(c => c.IsActive)
             .OrderBy(c => c.SortOrder).ThenBy(c => c.Name)
@@ -34,6 +35,7 @@ public sealed class ChannelService(
 
     public async Task<ChannelDto?> GetChannelBySlugAsync(string slug, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.Channels.AsNoTracking()
             .Where(c => c.Slug == slug && c.IsActive)
             .Select(c => new ChannelDto(
@@ -48,6 +50,7 @@ public sealed class ChannelService(
         page = Math.Max(1, page);
         pageSize = Math.Clamp(pageSize, 1, 50);
 
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var query = db.ChannelPosts.AsNoTracking()
             .Where(p => p.Channel!.Slug == channelSlug
                         && p.Status == ChannelPostStatus.Approved
@@ -72,6 +75,7 @@ public sealed class ChannelService(
 
     public async Task<ChannelPostDto?> GetPostAsync(Guid postId, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.ChannelPosts.AsNoTracking()
             .Where(p => p.Id == postId && p.Status == ChannelPostStatus.Approved && !p.IsHidden)
             .Select(ToDto())
@@ -84,6 +88,7 @@ public sealed class ChannelService(
         if (!validation.IsValid)
             return OperationResult<Guid>.Fail(string.Join(" ", validation.Errors.Select(e => e.ErrorMessage)));
 
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var channel = await db.Channels.FirstOrDefaultAsync(c => c.Id == input.ChannelId && c.IsActive, ct);
         if (channel is null)
             return OperationResult<Guid>.Fail("Channel not found.");
@@ -121,7 +126,7 @@ public sealed class ChannelService(
 
         db.ModerationCases.Add(new ModerationCase
         {
-            ChannelPost = post,
+            ChannelPostId = post.Id,
             State = ModerationCaseState.Open,
             Priority = findings.Count > 0 ? ModerationPriority.High : ModerationPriority.Normal,
         });
@@ -135,6 +140,7 @@ public sealed class ChannelService(
 
     public async Task<IReadOnlyList<ChannelPostDto>> GetMyPostsAsync(string userId, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         return await db.ChannelPosts.AsNoTracking()
             .Where(p => p.AuthorUserId == userId)
             .OrderByDescending(p => p.CreatedUtc)

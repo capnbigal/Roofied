@@ -26,13 +26,15 @@ public class ChannelModerationTests
 
         public Harness()
         {
-            Db = TestDb.Create(Clock);
+            var storeName = Guid.NewGuid().ToString();
+            Db = TestDb.Create(Clock, storeName);
+            var factory = new TestDbContextFactory(storeName, Clock);
             var sanitizer = TestDb.Sanitizer();
-            var audit = new AuditService(Db);
-            var rate = new RateLimitService(Db, Clock, Options.Create(new RateLimitOptions()));
-            Channels = new ChannelService(Db, new ChannelPostInputValidator(), sanitizer,
+            var audit = new AuditService(factory);
+            var rate = new RateLimitService(factory, Clock, Options.Create(new RateLimitOptions()));
+            Channels = new ChannelService(factory, new ChannelPostInputValidator(), sanitizer,
                 new PiiDetectionService(), rate, new AlwaysPassCaptcha(), User, audit);
-            Moderation = new ModerationService(Db, new LocationPrecisionService(), sanitizer,
+            Moderation = new ModerationService(factory, new LocationPrecisionService(), sanitizer,
                 Clock, User, audit, Options.Create(new LocationPrecisionConfig()));
 
             var channel = new Channel { Name = "Safety Tips", Slug = "safety-tips", AllowAnonymousPosts = true };

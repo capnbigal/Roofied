@@ -11,12 +11,12 @@ public class RateLimitServiceTests
     public async Task Blocks_after_limit_is_reached_within_window()
     {
         var clock = new FakeClock();
-        using var db = TestDb.Create(clock);
+        var factory = new TestDbContextFactory(Guid.NewGuid().ToString(), clock);
         var options = Options.Create(new RateLimitOptions
         {
             ReportSubmit = new RateLimitRule { Limit = 3, WindowMinutes = 60 },
         });
-        var svc = new RateLimitService(db, clock, options);
+        var svc = new RateLimitService(factory, clock, options);
 
         for (var i = 0; i < 3; i++)
         {
@@ -32,12 +32,12 @@ public class RateLimitServiceTests
     public async Task Different_clients_are_limited_independently()
     {
         var clock = new FakeClock();
-        using var db = TestDb.Create(clock);
+        var factory = new TestDbContextFactory(Guid.NewGuid().ToString(), clock);
         var options = Options.Create(new RateLimitOptions
         {
             ReportSubmit = new RateLimitRule { Limit = 1, WindowMinutes = 60 },
         });
-        var svc = new RateLimitService(db, clock, options);
+        var svc = new RateLimitService(factory, clock, options);
 
         Assert.True((await svc.CheckAndRecordAsync(RateLimitAction.ReportSubmit, "a")).Allowed);
         Assert.False((await svc.CheckAndRecordAsync(RateLimitAction.ReportSubmit, "a")).Allowed);
@@ -48,12 +48,12 @@ public class RateLimitServiceTests
     public async Task Window_resets_allow_after_time_passes()
     {
         var clock = new FakeClock();
-        using var db = TestDb.Create(clock);
+        var factory = new TestDbContextFactory(Guid.NewGuid().ToString(), clock);
         var options = Options.Create(new RateLimitOptions
         {
             ReportSubmit = new RateLimitRule { Limit = 1, WindowMinutes = 15 },
         });
-        var svc = new RateLimitService(db, clock, options);
+        var svc = new RateLimitService(factory, clock, options);
 
         Assert.True((await svc.CheckAndRecordAsync(RateLimitAction.ReportSubmit, "a")).Allowed);
         Assert.False((await svc.CheckAndRecordAsync(RateLimitAction.ReportSubmit, "a")).Allowed);

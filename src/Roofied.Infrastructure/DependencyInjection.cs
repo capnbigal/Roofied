@@ -43,7 +43,12 @@ public static class DependencyInjection
 
         services.AddSingleton<IClock, SystemClock>();
 
-        services.AddDbContext<RoofiedDbContext>(options =>
+        // Blazor Server keeps a DI scope alive for the whole circuit, which makes a scoped DbContext
+        // unsafe (disposal / concurrent-use errors). Register a DbContext FACTORY so application
+        // services create a short-lived context per unit of work. Also register a scoped context
+        // (delegating to the factory) for Identity stores, health checks, seeding, and migrations,
+        // which only run inside ordinary request scopes.
+        void ConfigureDb(DbContextOptionsBuilder options)
         {
             options.UseSqlServer(connectionString, sql =>
             {
@@ -54,7 +59,11 @@ public static class DependencyInjection
             // false-positive PendingModelChangesWarning at runtime. Migrations are authoritative
             // (verified by `dotnet ef migrations has-pending-model-changes`), so log instead of throw.
             options.ConfigureWarnings(w => w.Log(RelationalEventId.PendingModelChangesWarning));
-        });
+        }
+
+        services.AddDbContextFactory<RoofiedDbContext>(ConfigureDb);
+        services.AddScoped<RoofiedDbContext>(sp =>
+            sp.GetRequiredService<IDbContextFactory<RoofiedDbContext>>().CreateDbContext());
 
         // Providers
         services.AddSingleton<IHtmlSanitizer, HtmlSanitizerService>();

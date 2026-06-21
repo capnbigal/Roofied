@@ -31,16 +31,18 @@ public class ReportRedactionIntegrationTests
 
         public Harness()
         {
-            Db = TestDb.Create(Clock);
+            var storeName = Guid.NewGuid().ToString();
+            Db = TestDb.Create(Clock, storeName);
+            var factory = new TestDbContextFactory(storeName, Clock);
             var sanitizer = TestDb.Sanitizer();
-            var audit = new AuditService(Db);
-            var rate = new RateLimitService(Db, Clock, Options.Create(new RateLimitOptions()));
+            var audit = new AuditService(factory);
+            var rate = new RateLimitService(factory, Clock, Options.Create(new RateLimitOptions()));
 
-            Reports = new ReportService(Db, new ReportSubmissionInputValidator(), sanitizer,
+            Reports = new ReportService(factory, new ReportSubmissionInputValidator(), sanitizer,
                 new PiiDetectionService(), new Roofied.Application.Common.ReferenceCodeGenerator(),
                 rate, new AlwaysPassCaptcha(), Clock, User, audit);
 
-            Moderation = new ModerationService(Db, new LocationPrecisionService(), sanitizer,
+            Moderation = new ModerationService(factory, new LocationPrecisionService(), sanitizer,
                 Clock, User, audit, Options.Create(new LocationPrecisionConfig()));
 
             var category = new ReportCategory { Name = "Suspected", Slug = "suspected" };

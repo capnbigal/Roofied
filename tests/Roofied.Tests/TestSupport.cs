@@ -29,9 +29,25 @@ public sealed class AlwaysPassCaptcha : ICaptchaVerifier
     public Task<bool> VerifyAsync(string? token, string? remoteIp, CancellationToken ct = default) => Task.FromResult(true);
 }
 
+/// <summary>
+/// An <see cref="IDbContextFactory{TContext}"/> for tests: every created context targets the SAME
+/// named in-memory store, so a factory and any directly-created context share data.
+/// </summary>
+public sealed class TestDbContextFactory(string name, IClock clock) : IDbContextFactory<RoofiedDbContext>
+{
+    public RoofiedDbContext CreateDbContext()
+    {
+        var options = new DbContextOptionsBuilder<RoofiedDbContext>()
+            .UseInMemoryDatabase(name)
+            .ConfigureWarnings(w => w.Ignore(Microsoft.EntityFrameworkCore.Diagnostics.InMemoryEventId.TransactionIgnoredWarning))
+            .Options;
+        return new RoofiedDbContext(options, clock);
+    }
+}
+
 public static class TestDb
 {
-    /// <summary>Creates a fresh in-memory context with a unique store per call.</summary>
+    /// <summary>Creates a fresh in-memory context with a unique (or shared, by name) store.</summary>
     public static RoofiedDbContext Create(IClock clock, string? name = null)
     {
         var options = new DbContextOptionsBuilder<RoofiedDbContext>()

@@ -12,17 +12,21 @@ using Roofied.Infrastructure.Persistence;
 namespace Roofied.Infrastructure.Services;
 
 public sealed class AdminService(
-    RoofiedDbContext db,
+    IDbContextFactory<RoofiedDbContext> dbFactory,
     IHtmlSanitizer sanitizer,
     ICurrentUser currentUser,
     IAuditService audit) : IAdminService
 {
-    public async Task<IReadOnlyList<CategoryDto>> GetReportCategoriesAsync(CancellationToken ct = default) =>
-        await db.ReportCategories.AsNoTracking().OrderBy(c => c.SortOrder)
+    public async Task<IReadOnlyList<CategoryDto>> GetReportCategoriesAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.ReportCategories.AsNoTracking().OrderBy(c => c.SortOrder)
             .Select(c => new CategoryDto(c.Id, c.Name, c.Slug, c.Description, c.SortOrder, c.IsActive)).ToListAsync(ct);
+    }
 
     public async Task<OperationResult<Guid>> UpsertReportCategoryAsync(CategoryInput input, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         ReportCategory entity;
         if (input.Id is { } id)
             entity = await db.ReportCategories.FirstAsync(c => c.Id == id, ct);
@@ -43,6 +47,7 @@ public sealed class AdminService(
 
     public async Task<OperationResult> DeleteReportCategoryAsync(Guid id, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         if (await db.Reports.AnyAsync(r => r.ReportCategoryId == id, ct))
             return OperationResult.Fail("Cannot delete a category that is in use. Deactivate it instead.");
         var entity = await db.ReportCategories.FirstOrDefaultAsync(c => c.Id == id, ct);
@@ -52,12 +57,16 @@ public sealed class AdminService(
         return OperationResult.Success();
     }
 
-    public async Task<IReadOnlyList<CategoryDto>> GetVenueCategoriesAsync(CancellationToken ct = default) =>
-        await db.VenueCategories.AsNoTracking().OrderBy(c => c.SortOrder)
+    public async Task<IReadOnlyList<CategoryDto>> GetVenueCategoriesAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.VenueCategories.AsNoTracking().OrderBy(c => c.SortOrder)
             .Select(c => new CategoryDto(c.Id, c.Name, c.Slug, c.Description, c.SortOrder, c.IsActive)).ToListAsync(ct);
+    }
 
     public async Task<OperationResult<Guid>> UpsertVenueCategoryAsync(CategoryInput input, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         VenueCategory entity;
         if (input.Id is { } id)
             entity = await db.VenueCategories.FirstAsync(c => c.Id == id, ct);
@@ -78,6 +87,7 @@ public sealed class AdminService(
 
     public async Task<OperationResult> DeleteVenueCategoryAsync(Guid id, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         if (await db.Reports.AnyAsync(r => r.VenueCategoryId == id, ct))
             return OperationResult.Fail("Cannot delete a category that is in use. Deactivate it instead.");
         var entity = await db.VenueCategories.FirstOrDefaultAsync(c => c.Id == id, ct);
@@ -87,13 +97,17 @@ public sealed class AdminService(
         return OperationResult.Success();
     }
 
-    public async Task<IReadOnlyList<AdminChannelDto>> GetChannelsAsync(CancellationToken ct = default) =>
-        await db.Channels.AsNoTracking().OrderBy(c => c.SortOrder)
+    public async Task<IReadOnlyList<AdminChannelDto>> GetChannelsAsync(CancellationToken ct = default)
+    {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
+        return await db.Channels.AsNoTracking().OrderBy(c => c.SortOrder)
             .Select(c => new AdminChannelDto(c.Id, c.Name, c.Slug, c.Description, c.Guidelines,
                 c.SortOrder, c.IsActive, c.IsLocked, c.AllowAnonymousPosts, c.CommentsEnabled)).ToListAsync(ct);
+    }
 
     public async Task<OperationResult<Guid>> UpsertChannelAsync(ChannelInput input, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         Channel entity;
         if (input.Id is { } id)
             entity = await db.Channels.FirstAsync(c => c.Id == id, ct);
@@ -118,6 +132,7 @@ public sealed class AdminService(
 
     public async Task<OperationResult> SetChannelLockedAsync(Guid id, bool locked, CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         var entity = await db.Channels.FirstOrDefaultAsync(c => c.Id == id, ct);
         if (entity is null) return OperationResult.Fail("Not found.");
         entity.IsLocked = locked;
@@ -128,6 +143,7 @@ public sealed class AdminService(
 
     public async Task<DashboardMetrics> GetMetricsAsync(CancellationToken ct = default)
     {
+        await using var db = await dbFactory.CreateDbContextAsync(ct);
         return new DashboardMetrics(
             PendingReports: await db.Reports.CountAsync(r => r.Status == ReportStatus.PendingReview, ct),
             ApprovedReports: await db.Reports.CountAsync(r => r.Status == ReportStatus.Approved, ct),
