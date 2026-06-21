@@ -3,15 +3,15 @@
 window.roofiedMap = (function () {
     const instances = {};
 
-    // Best-effort: center the map near the user via the browser geolocation API.
-    // Falls back silently to the server-provided default if denied/unavailable.
-    // `skip()` lets callers cancel the recenter once data-driven bounds have taken over.
-    function geolocate(map, skip, zoom) {
+    // Best-effort: after the initial whole-globe view, ask the browser for the user's
+    // location and zoom in to their area. If permission is denied or geolocation is
+    // unavailable, the globe (or report bounds) view is kept. `onLocated` flags success.
+    function geolocate(map, zoom, onLocated) {
         if (!navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(
             function (pos) {
-                if (typeof skip === "function" && skip()) return;
                 map.setView([pos.coords.latitude, pos.coords.longitude], zoom || 11);
+                if (typeof onLocated === "function") onLocated();
             },
             function () { /* permission denied or unavailable: keep the default view */ },
             { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }
@@ -31,7 +31,8 @@ window.roofiedMap = (function () {
         const map = L.map(elementId, {
             scrollWheelZoom: true,
             attributionControl: true,
-        }).setView([options.lat ?? 39.5, options.lng ?? -98.35], options.zoom ?? 4);
+            worldCopyJump: true,
+        }).setView([options.lat ?? 20, options.lng ?? 0], options.zoom ?? 2);
 
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             maxZoom: 18,
@@ -45,8 +46,8 @@ window.roofiedMap = (function () {
         // Leaflet sometimes needs a nudge when rendered inside a flex/hidden container.
         setTimeout(() => map.invalidateSize(), 200);
 
-        // Center near the user, unless approved reports are already plotted (their bounds win).
-        geolocate(map, () => instances[elementId] && instances[elementId].hasPoints, 11);
+        // Start on the whole globe, then (after the permission prompt) zoom in to the user's area.
+        geolocate(map, 11);
     }
 
     function setPoints(elementId, points) {
@@ -71,11 +72,10 @@ window.roofiedMap = (function () {
             markers.push(marker);
         });
         inst.cluster.addLayers(markers);
-
         inst.hasPoints = markers.length > 0;
-        if (inst.hasPoints) {
-            try { inst.map.fitBounds(inst.cluster.getBounds().pad(0.2)); } catch (e) { /* ignore */ }
-        }
+        // Note: we intentionally do NOT auto-fit to the report bounds. The map starts on the whole
+        // globe (all pins visible as clusters); accepting the geolocation prompt zooms to the user's
+        // area. This keeps the "globe first, then zoom to me" flow and avoids view jumps.
     }
 
     function dispose(elementId) {
@@ -100,7 +100,8 @@ window.roofiedMap = (function () {
             try { instances[elementId].map.remove(); } catch (e) { /* ignore */ }
             delete instances[elementId];
         }
-        const map = L.map(elementId).setView([options.lat ?? 39.5, options.lng ?? -98.35], options.zoom ?? 4);
+        const map = L.map(elementId, { worldCopyJump: true })
+            .setView([options.lat ?? 20, options.lng ?? 0], options.zoom ?? 2);
         L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
             maxZoom: 18, attribution: "&copy; OpenStreetMap contributors",
         }).addTo(map);
@@ -116,8 +117,9 @@ window.roofiedMap = (function () {
         instances[elementId] = { map, cluster: null };
         setTimeout(() => map.invalidateSize(), 200);
 
-        // Center the picker near the user so they can pick a nearby point (no marker auto-placed).
-        geolocate(map, null, 13);
+        // Start on the whole globe, then zoom in to the user's area after the permission prompt
+        // so they can pick a nearby point (no marker auto-placed).
+        geolocate(map, 13);
     }
 
     return { init, setPoints, dispose, initPicker };

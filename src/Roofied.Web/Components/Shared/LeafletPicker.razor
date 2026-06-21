@@ -7,9 +7,9 @@
 @code {
     [Parameter] public EventCallback<(double Lat, double Lng)> OnPicked { get; set; }
     [Parameter] public string Height { get; set; } = "320px";
-    [Parameter] public double CenterLat { get; set; } = 39.5;
-    [Parameter] public double CenterLng { get; set; } = -98.35;
-    [Parameter] public int Zoom { get; set; } = 4;
+    [Parameter] public double CenterLat { get; set; } = 20;
+    [Parameter] public double CenterLng { get; set; } = 0;
+    [Parameter] public int Zoom { get; set; } = 2;
 
     private readonly string _elementId = "picker-" + Guid.NewGuid().ToString("N");
     private DotNetObjectReference<LeafletPicker>? _ref;

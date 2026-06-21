@@ -7,9 +7,9 @@
 
 @code {
     [Parameter] public IReadOnlyList<MapMarker> Markers { get; set; } = Array.Empty<MapMarker>();
-    [Parameter] public double CenterLat { get; set; } = 39.5;
-    [Parameter] public double CenterLng { get; set; } = -98.35;
-    [Parameter] public int Zoom { get; set; } = 4;
+    [Parameter] public double CenterLat { get; set; } = 20;
+    [Parameter] public double CenterLng { get; set; } = 0;
+    [Parameter] public int Zoom { get; set; } = 2;
     [Parameter] public string Height { get; set; } = "70vh";
 
     private readonly string _elementId = "map-" + Guid.NewGuid().ToString("N");
