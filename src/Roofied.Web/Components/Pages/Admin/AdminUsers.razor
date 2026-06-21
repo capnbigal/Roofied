@@ -1,5 +1,4 @@
 @page "/admin/users"
-@rendermode InteractiveServer
 @attribute [Authorize(Policy = PolicyNames.CanAdministerPlatform)]
 @inject IUserAdminService Users
 @inject ISnackbar Snackbar

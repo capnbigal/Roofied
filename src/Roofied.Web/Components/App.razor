@@ -23,11 +23,11 @@
 
     <ImportMap />
     <link rel="icon" type="image/png" href="favicon.png" />
-    <HeadOutlet />
+    <HeadOutlet @rendermode="@PageRenderMode" />
 </head>
 
 <body>
-    <Routes />
+    <Routes @rendermode="@PageRenderMode" />
     <ReconnectModal />
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["Components/Account/Shared/PasskeySubmit.razor.js"]" type="module"></script>
@@ -41,3 +41,13 @@
 </body>
 
 </html>
+
+@code {
+    // Apply InteractiveServer globally so the layout and its MudBlazor providers
+    // (MudPopoverProvider / MudDialogProvider / MudSnackbarProvider / MudThemeProvider) are interactive.
+    // Identity/Account pages are marked [ExcludeFromInteractiveRouting] and render statically.
+    [CascadingParameter] private HttpContext HttpContext { get; set; } = default!;
+
+    private IComponentRenderMode? PageRenderMode =>
+        HttpContext.AcceptsInteractiveRouting() ? InteractiveServer : null;
+}

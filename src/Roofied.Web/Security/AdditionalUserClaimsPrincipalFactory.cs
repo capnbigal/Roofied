@@ -10,12 +10,17 @@ namespace Roofied.Web.Security;
 /// <summary>
 /// Adds a non-sensitive "display_name" claim (from the user's profile) to the principal so the app
 /// can show an optional alias without exposing the user's email/identity.
+///
+/// IMPORTANT: this derives from the TWO-generic <see cref="UserClaimsPrincipalFactory{TUser,TRole}"/>
+/// so that ROLE claims are included in the principal. The single-generic base does not emit roles,
+/// which would silently break every role-based authorization policy.
 /// </summary>
 public sealed class AdditionalUserClaimsPrincipalFactory(
     UserManager<ApplicationUser> userManager,
+    RoleManager<IdentityRole> roleManager,
     IOptions<IdentityOptions> optionsAccessor,
     RoofiedDbContext db)
-    : UserClaimsPrincipalFactory<ApplicationUser>(userManager, optionsAccessor)
+    : UserClaimsPrincipalFactory<ApplicationUser, IdentityRole>(userManager, roleManager, optionsAccessor)
 {
     protected override async Task<ClaimsIdentity> GenerateClaimsAsync(ApplicationUser user)
     {

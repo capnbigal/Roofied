@@ -1,5 +1,4 @@
 @page "/moderator/flags"
-@rendermode InteractiveServer
 @attribute [Authorize(Policy = PolicyNames.CanModerateReports)]
 @inject IModerationService Moderation
 @inject ISnackbar Snackbar

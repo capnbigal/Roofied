@@ -1,5 +1,4 @@
 @page "/account/my-posts"
-@rendermode InteractiveServer
 @attribute [Authorize(Policy = PolicyNames.RegisteredUser)]
 @inject IChannelService Channels
 @inject AuthenticationStateProvider AuthState

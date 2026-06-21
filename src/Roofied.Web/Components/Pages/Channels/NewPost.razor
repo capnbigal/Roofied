@@ -1,5 +1,4 @@
 @page "/channels/{Slug}/new"
-@rendermode InteractiveServer
 @attribute [Authorize(Policy = PolicyNames.RegisteredUser)]
 @inject IChannelService Channels
 @inject ISnackbar Snackbar

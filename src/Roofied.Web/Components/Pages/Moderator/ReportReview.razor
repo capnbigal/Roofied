@@ -1,5 +1,4 @@
 @page "/moderator/reports/{Id:guid}"
-@rendermode InteractiveServer
 @attribute [Authorize(Policy = PolicyNames.CanViewRestrictedReportData)]
 @inject IModerationService Moderation
 @inject ISnackbar Snackbar

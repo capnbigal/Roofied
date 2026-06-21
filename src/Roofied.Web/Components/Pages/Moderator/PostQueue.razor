@@ -1,5 +1,4 @@
 @page "/moderator/posts"
-@rendermode InteractiveServer
 @attribute [Authorize(Policy = PolicyNames.CanModerateChannels)]
 @inject IModerationService Moderation
 @inject ISnackbar Snackbar

@@ -1,5 +1,4 @@
 @page "/account/my-reports"
-@rendermode InteractiveServer
 @attribute [Authorize(Policy = PolicyNames.RegisteredUser)]
 @inject IReportService Reports
 @inject AuthenticationStateProvider AuthState
