@@ -1,0 +1,58 @@
+@* Reusable add/edit/delete editor for a list of categories. *@
+<MudPaper Outlined="true" Class="pa-4">
+    <MudText Typo="Typo.subtitle1" Class="mb-2">@Title</MudText>
+
+    <MudTable Items="Items" Dense="true" Hover="true" Elevation="0">
+        <HeaderContent>
+            <MudTh>Name</MudTh>
+            <MudTh>Order</MudTh>
+            <MudTh>Active</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Name</MudTd>
+            <MudTd>@context.SortOrder</MudTd>
+            <MudTd>@(context.IsActive ? "Yes" : "No")</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => OnDelete.InvokeAsync(context.Id))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <MudDivider Class="my-3" />
+    <MudText Typo="Typo.subtitle2">@(_edit.Id is null ? "Add new" : "Edit")</MudText>
+    <MudTextField @bind-Value="_edit.Name" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+    <div class="d-flex" style="gap:8px;">
+        <MudNumericField @bind-Value="_edit.SortOrder" Label="Order" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px" />
+        <MudSwitch T="bool" @bind-Value="_edit.IsActive" Color="Color.Primary" Label="Active" Class="align-self-center" />
+    </div>
+    <div class="mt-2 d-flex" style="gap:8px;">
+        <MudButton OnClick="SaveAsync" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small">Save</MudButton>
+        @if (_edit.Id is not null)
+        {
+            <MudButton OnClick="ResetEdit" Variant="Variant.Text" Size="Size.Small">Cancel</MudButton>
+        }
+    </div>
+</MudPaper>
+
+@code {
+    [Parameter] public string Title { get; set; } = "";
+    [Parameter] public IReadOnlyList<CategoryDto> Items { get; set; } = Array.Empty<CategoryDto>();
+    [Parameter] public EventCallback<CategoryInput> OnSave { get; set; }
+    [Parameter] public EventCallback<Guid> OnDelete { get; set; }
+
+    private CategoryInput _edit = new() { IsActive = true };
+
+    private void Edit(CategoryDto c) =>
+        _edit = new CategoryInput { Id = c.Id, Name = c.Name, SortOrder = c.SortOrder, IsActive = c.IsActive };
+
+    private void ResetEdit() => _edit = new CategoryInput { IsActive = true };
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_edit.Name)) return;
+        await OnSave.InvokeAsync(_edit);
+        ResetEdit();
+    }
+}

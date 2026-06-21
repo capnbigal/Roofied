@@ -1,0 +1,54 @@
+@page "/channels"
+@rendermode InteractiveServer
+@inject IChannelService Channels
+
+<PageTitle>Community channels</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">Community channels</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+    Moderated, supportive discussion. Please don't name or accuse specific people, venues, or businesses,
+    and avoid sharing personal information. All posts are reviewed before they appear.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid>
+        @foreach (var c in _channels)
+        {
+            <MudItem xs="12" md="6">
+                <MudCard Outlined="true" Class="h-100">
+                    <MudCardContent>
+                        <div class="d-flex align-center" style="gap:8px;">
+                            <MudIcon Icon="@Icons.Material.Filled.Forum" Color="Color.Primary" />
+                            <MudText Typo="Typo.h6">@c.Name</MudText>
+                            @if (c.IsLocked)
+                            {
+                                <MudChip T="string" Size="Size.Small" Color="Color.Warning" Variant="Variant.Text">Locked</MudChip>
+                            }
+                        </div>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">@c.Description</MudText>
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@c.ApprovedPostCount posts</MudChip>
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Href="@($"/channels/{c.Slug}")" Color="Color.Primary" Variant="Variant.Text">Open</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+}
+
+@code {
+    private bool _loading = true;
+    private IReadOnlyList<ChannelDto> _channels = Array.Empty<ChannelDto>();
+
+    protected override async Task OnInitializedAsync()
+    {
+        _channels = await Channels.GetChannelsAsync();
+        _loading = false;
+    }
+}

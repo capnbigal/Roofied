@@ -1,0 +1,64 @@
+@page "/admin/categories"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanAdministerPlatform)]
+@inject IAdminService Admin
+@inject ISnackbar Snackbar
+
+<PageTitle>Categories</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">Categories</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="6">
+        <CategoryEditor Title="Incident types" Items="_reportCats"
+                        OnSave="SaveReportAsync" OnDelete="DeleteReportAsync" />
+    </MudItem>
+    <MudItem xs="12" md="6">
+        <CategoryEditor Title="Venue categories" Items="_venueCats"
+                        OnSave="SaveVenueAsync" OnDelete="DeleteVenueAsync" />
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<CategoryDto> _reportCats = Array.Empty<CategoryDto>();
+    private IReadOnlyList<CategoryDto> _venueCats = Array.Empty<CategoryDto>();
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _reportCats = await Admin.GetReportCategoriesAsync();
+        _venueCats = await Admin.GetVenueCategoriesAsync();
+    }
+
+    private async Task SaveReportAsync(CategoryInput input)
+    {
+        var r = await Admin.UpsertReportCategoryAsync(input);
+        Notify(r.Succeeded, r.Error);
+        await LoadAsync();
+    }
+
+    private async Task DeleteReportAsync(Guid id)
+    {
+        var r = await Admin.DeleteReportCategoryAsync(id);
+        Notify(r.Succeeded, r.Error);
+        await LoadAsync();
+    }
+
+    private async Task SaveVenueAsync(CategoryInput input)
+    {
+        var r = await Admin.UpsertVenueCategoryAsync(input);
+        Notify(r.Succeeded, r.Error);
+        await LoadAsync();
+    }
+
+    private async Task DeleteVenueAsync(Guid id)
+    {
+        var r = await Admin.DeleteVenueCategoryAsync(id);
+        Notify(r.Succeeded, r.Error);
+        await LoadAsync();
+    }
+
+    private void Notify(bool ok, string? error) =>
+        Snackbar.Add(ok ? "Saved." : (error ?? "Failed."), ok ? Severity.Success : Severity.Error);
+}

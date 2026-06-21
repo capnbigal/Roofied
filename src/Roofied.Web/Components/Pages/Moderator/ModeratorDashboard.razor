@@ -1,0 +1,36 @@
+@page "/moderator"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.ModeratorOrAdministrator)]
+@inject IAdminService Admin
+
+<PageTitle>Moderation dashboard</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">Moderation dashboard</MudText>
+
+@if (_metrics is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid>
+        <MetricCard Title="Reports pending" Value="_metrics.PendingReports" Icon="@Icons.Material.Filled.FactCheck" Href="/moderator/reports" Color="Color.Info" />
+        <MetricCard Title="Posts pending" Value="_metrics.PendingPosts" Icon="@Icons.Material.Filled.Forum" Href="/moderator/posts" Color="Color.Warning" />
+        <MetricCard Title="Open flags" Value="_metrics.OpenFlags" Icon="@Icons.Material.Filled.Flag" Href="/moderator/flags" Color="Color.Error" />
+        <MetricCard Title="Approved reports" Value="_metrics.ApprovedReports" Icon="@Icons.Material.Filled.CheckCircle" Href="/moderator/reports" Color="Color.Success" />
+    </MudGrid>
+
+    <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Class="mt-4">
+        Remember: never publish names, exact locations/times, contact details, or unverified accusations.
+        Generalize locations and redact identifying text before approving.
+    </MudAlert>
+}
+
+@code {
+    private DashboardMetrics? _metrics;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _metrics = await Admin.GetMetricsAsync();
+    }
+}

@@ -1,0 +1,70 @@
+@inject IContentFlagService Flags
+@inject ISnackbar Snackbar
+
+<MudDialog>
+    <DialogContent>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+            Thanks for helping keep this community safe. Tell us what's concerning about this content.
+            Please don't include personal information.
+        </MudText>
+        <MudSelect T="FlagReason" Label="Reason" @bind-Value="_input.Reason" Variant="Variant.Outlined" Class="mb-3">
+            <MudSelectItem T="FlagReason" Value="FlagReason.PersonalInformation">Contains personal information</MudSelectItem>
+            <MudSelectItem T="FlagReason" Value="FlagReason.AccusationOfIdentifiablePerson">Accuses an identifiable person/business</MudSelectItem>
+            <MudSelectItem T="FlagReason" Value="FlagReason.Harassment">Harassment</MudSelectItem>
+            <MudSelectItem T="FlagReason" Value="FlagReason.Misinformation">Misinformation</MudSelectItem>
+            <MudSelectItem T="FlagReason" Value="FlagReason.Inappropriate">Inappropriate</MudSelectItem>
+            <MudSelectItem T="FlagReason" Value="FlagReason.Spam">Spam</MudSelectItem>
+            <MudSelectItem T="FlagReason" Value="FlagReason.Other">Other</MudSelectItem>
+        </MudSelect>
+        <MudTextField @bind-Value="_input.Details" Label="Details (optional)" Lines="3" Variant="Variant.Outlined"
+                      Counter="2000" MaxLength="2000" />
+        <CaptchaWidget @ref="_captcha" />
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mt-2">@_error</MudAlert>
+        }
+    </DialogContent>
+    <DialogActions>
+        <MudButton OnClick="Cancel">Cancel</MudButton>
+        <MudButton OnClick="SubmitAsync" Disabled="_busy" Color="Color.Primary" Variant="Variant.Filled">Submit concern</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter] private IMudDialogInstance MudDialog { get; set; } = null!;
+    [Parameter] public ModeratedContentType ContentType { get; set; }
+    [Parameter] public Guid ContentId { get; set; }
+
+    private readonly ContentFlagInput _input = new();
+    private CaptchaWidget? _captcha;
+    private bool _busy;
+    private string? _error;
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            _input.ContentType = ContentType;
+            _input.ContentId = ContentId;
+            if (_captcha is not null)
+                _input.CaptchaToken = await _captcha.GetTokenAsync();
+
+            var result = await Flags.SubmitAsync(_input);
+            if (!result.Succeeded)
+            {
+                _error = result.Error;
+                return;
+            }
+            Snackbar.Add("Thank you. A moderator will review this.", Severity.Success);
+            MudDialog.Close(DialogResult.Ok(true));
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void Cancel() => MudDialog.Cancel();
+}

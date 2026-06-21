@@ -1,0 +1,58 @@
+@page "/channels/post/{Id:guid}"
+@rendermode InteractiveServer
+@inject IChannelService Channels
+@inject IDialogService Dialogs
+
+<PageTitle>@(_post?.Title ?? "Post")</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_post is null)
+{
+    <MudPaper Class="pa-8 text-center" Outlined="true">
+        <MudText Typo="Typo.h6">This post isn't available</MudText>
+        <MudButton Href="/channels" Variant="Variant.Filled" Color="Color.Primary" Class="mt-2">All channels</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudButton Href="@($"/channels/{_post.ChannelSlug}")" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mb-2">Back to @_post.ChannelName</MudButton>
+
+    <MudPaper Elevation="1" Class="pa-6">
+        <MudText Typo="Typo.h4">@_post.Title</MudText>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary">
+            @(string.IsNullOrWhiteSpace(_post.AuthorDisplayName) ? "Anonymous" : _post.AuthorDisplayName)
+            · @(_post.PublishedUtc?.ToString("MMMM d, yyyy") ?? "")
+        </MudText>
+        <MudDivider Class="my-3" />
+        <MudText Typo="Typo.body1" Style="white-space:pre-line">@_post.Body</MudText>
+
+        <MudDivider Class="my-4" />
+        <MudButton OnClick="ReportConcern" StartIcon="@Icons.Material.Filled.Flag" Variant="Variant.Outlined">Report a concern</MudButton>
+    </MudPaper>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+    private ChannelPostDto? _post;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _post = await Channels.GetPostAsync(Id);
+        _loading = false;
+    }
+
+    private async Task ReportConcern()
+    {
+        var parameters = new DialogParameters<ReportConcernDialog>
+        {
+            { x => x.ContentType, ModeratedContentType.ChannelPost },
+            { x => x.ContentId, Id },
+        };
+        await Dialogs.ShowAsync<ReportConcernDialog>("Report a concern", parameters);
+    }
+}

@@ -1,0 +1,22 @@
+<MudChip T="string" Size="Size.Small" Color="@_color" Variant="Variant.Filled">@_label</MudChip>
+
+@code {
+    [Parameter] public ReportStatus Status { get; set; }
+
+    private Color _color => Status switch
+    {
+        ReportStatus.Approved => Color.Success,
+        ReportStatus.PendingReview => Color.Info,
+        ReportStatus.NeedsClarification => Color.Warning,
+        ReportStatus.Rejected => Color.Error,
+        ReportStatus.Archived => Color.Dark,
+        _ => Color.Default,
+    };
+
+    private string _label => Status switch
+    {
+        ReportStatus.PendingReview => "Pending review",
+        ReportStatus.NeedsClarification => "Needs clarification",
+        _ => Status.ToString(),
+    };
+}

@@ -1,0 +1,122 @@
+@page "/reports/{Id:guid}"
+@rendermode InteractiveServer
+@inject IReportService Reports
+@inject IDialogService Dialogs
+
+<PageTitle>Report @(_report?.ReferenceCode ?? "")</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-6" />
+}
+else if (_report is null)
+{
+    <MudPaper Class="pa-8 text-center" Outlined="true">
+        <MudIcon Icon="@Icons.Material.Filled.SearchOff" Size="Size.Large" Class="mb-2" />
+        <MudText Typo="Typo.h6">This report isn't available</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">It may not be published, or the link may be incorrect.</MudText>
+        <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary" Class="mt-3">Back to map</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudContainer MaxWidth="MaxWidth.Medium" Class="px-0">
+        <MudButton Href="/" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mb-2">Back to map</MudButton>
+
+        <MudPaper Elevation="1" Class="pa-6">
+            <div class="d-flex flex-wrap align-center" style="gap:8px;">
+                <MudChip T="string" Color="Color.Primary" Variant="Variant.Filled">@_report.IncidentTypeName</MudChip>
+                @if (!string.IsNullOrWhiteSpace(_report.VenueCategoryName))
+                {
+                    <MudChip T="string" Variant="Variant.Outlined">@_report.VenueCategoryName</MudChip>
+                }
+                <SuspicionChip Level="_report.SuspicionLevel" />
+                <MudChip T="string" Variant="Variant.Text" Color="Color.Secondary">Moderated</MudChip>
+                <MudChip T="string" Variant="Variant.Text">Approximate location</MudChip>
+            </div>
+
+            <MudText Typo="Typo.h5" Class="mt-3">@(_report.GeneralizedAreaLabel ?? _report.City)</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                @FormatRange(_report.IncidentDateFrom, _report.IncidentDateTo)
+                @if (!string.IsNullOrWhiteSpace(_report.Region)) { <text> · @_report.Region</text> }
+                @if (!string.IsNullOrWhiteSpace(_report.Country)) { <text>, @_report.Country</text> }
+            </MudText>
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">Reference @_report.ReferenceCode</MudText>
+
+            <MudDivider Class="my-4" />
+
+            @if (!string.IsNullOrWhiteSpace(_report.PublicSummary))
+            {
+                <MudText Typo="Typo.subtitle1">Moderated summary</MudText>
+                <MudText Typo="Typo.body1" Class="mt-1">@_report.PublicSummary</MudText>
+            }
+            else
+            {
+                <MudText Typo="Typo.body2" Class="mud-text-secondary">No public summary was provided for this report.</MudText>
+            }
+
+            <MudGrid Class="mt-3">
+                <MudItem xs="6" sm="4">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Medical care sought</MudText>
+                    <MudText Typo="Typo.body2">@YesNo(_report.MedicalCareSought)</MudText>
+                </MudItem>
+                <MudItem xs="6" sm="4">
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">Police report filed</MudText>
+                    <MudText Typo="Typo.body2">@YesNo(_report.PoliceReportFiled)</MudText>
+                </MudItem>
+            </MudGrid>
+
+            @if (_report.SafetyTags.Count > 0)
+            {
+                <MudText Typo="Typo.subtitle2" Class="mt-4">Safety tags</MudText>
+                <div class="d-flex flex-wrap mt-1" style="gap:6px;">
+                    @foreach (var tag in _report.SafetyTags)
+                    {
+                        <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@tag</MudChip>
+                    }
+                </div>
+            }
+
+            <MudAlert Severity="Severity.Info" Variant="Variant.Outlined" Dense="true" Class="mt-4">
+                This is a community-submitted, moderated report shown only in a generalized, anonymized form.
+                It is not a verified accusation against any person or business.
+            </MudAlert>
+
+            <MudDivider Class="my-4" />
+            <div class="d-flex flex-wrap" style="gap:8px;">
+                <MudButton OnClick="ReportConcern" StartIcon="@Icons.Material.Filled.Flag" Variant="Variant.Outlined">Report a concern</MudButton>
+                <MudButton Href="/report/new" StartIcon="@Icons.Material.Filled.AddLocationAlt" Variant="Variant.Outlined">Submit a related report</MudButton>
+                <MudButton Href="/resources" StartIcon="@Icons.Material.Filled.Emergency" Color="Color.Error" Variant="Variant.Filled">Get help now</MudButton>
+            </div>
+        </MudPaper>
+    </MudContainer>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private PublicReportDetailDto? _report;
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _report = await Reports.GetPublicDetailAsync(Id);
+        _loading = false;
+    }
+
+    private async Task ReportConcern()
+    {
+        var parameters = new DialogParameters<ReportConcernDialog>
+        {
+            { x => x.ContentType, ModeratedContentType.Report },
+            { x => x.ContentId, Id },
+        };
+        await Dialogs.ShowAsync<ReportConcernDialog>("Report a concern", parameters);
+    }
+
+    private static string FormatRange(DateOnly from, DateOnly to) =>
+        from == to ? from.ToString("MMMM d, yyyy") : $"{from:MMM d} – {to:MMM d, yyyy}";
+
+    private static string YesNo(bool? v) => v is null ? "Not stated" : (v.Value ? "Yes" : "No");
+}

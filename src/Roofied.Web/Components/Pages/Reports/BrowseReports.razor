@@ -1,0 +1,114 @@
+@page "/reports"
+@rendermode InteractiveServer
+@inject IReportService Reports
+@inject ILookupService Lookups
+
+<PageTitle>Browse reports</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-1">Browse moderated reports</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">All entries are anonymized and shown at approximate locations.</MudText>
+
+<MudPaper Elevation="0" Outlined="true" Class="pa-3 mb-4">
+    <MudGrid>
+        <MudItem xs="12" sm="4">
+            <MudTextField @bind-Value="_city" Label="City / area" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+        </MudItem>
+        <MudItem xs="12" sm="4">
+            <MudSelect T="Guid?" Label="Incident type" @bind-Value="_categoryId" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true">
+                @foreach (var c in _categories)
+                {
+                    <MudSelectItem T="Guid?" Value="@c.Id">@c.Name</MudSelectItem>
+                }
+            </MudSelect>
+        </MudItem>
+        <MudItem xs="12" sm="4" Class="d-flex align-center">
+            <MudButton OnClick="ApplyAsync" Variant="Variant.Filled" Color="Color.Primary" Class="mr-2">Apply</MudButton>
+            <MudButton OnClick="ResetAsync" Variant="Variant.Text">Reset</MudButton>
+        </MudItem>
+    </MudGrid>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_items.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 text-center mud-text-secondary">
+        <MudIcon Icon="@Icons.Material.Filled.Inbox" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-2">No approved reports match your filters yet.</MudText>
+    </MudPaper>
+}
+else
+{
+    <MudGrid>
+        @foreach (var r in _items)
+        {
+            <MudItem xs="12" sm="6" md="4">
+                <MudCard Outlined="true" Class="h-100">
+                    <MudCardContent>
+                        <div class="d-flex flex-wrap mb-2" style="gap:6px;">
+                            <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">@r.IncidentTypeName</MudChip>
+                            <SuspicionChip Level="r.SuspicionLevel" />
+                        </div>
+                        <MudText Typo="Typo.subtitle1">@(r.GeneralizedAreaLabel ?? r.City)</MudText>
+                        <MudText Typo="Typo.caption" Class="mud-text-secondary">@FormatRange(r.IncidentDateFrom, r.IncidentDateTo)</MudText>
+                        @if (!string.IsNullOrWhiteSpace(r.ShortSummary))
+                        {
+                            <MudText Typo="Typo.body2" Class="mt-2">@Truncate(r.ShortSummary!, 140)</MudText>
+                        }
+                    </MudCardContent>
+                    <MudCardActions>
+                        <MudButton Href="@($"/reports/{r.Id}")" Variant="Variant.Text" Color="Color.Primary">View</MudButton>
+                    </MudCardActions>
+                </MudCard>
+            </MudItem>
+        }
+    </MudGrid>
+
+    <div class="d-flex justify-center mt-4">
+        <MudPagination Count="@_pageCount" Selected="_page" SelectedChanged="OnPageChangedAsync" />
+    </div>
+}
+
+@code {
+    private List<PublicReportListItemDto> _items = new();
+    private IReadOnlyList<CategoryDto> _categories = Array.Empty<CategoryDto>();
+    private string? _city;
+    private Guid? _categoryId;
+    private int _page = 1;
+    private const int PageSize = 12;
+    private int _total;
+    private int _pageCount => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Lookups.GetReportCategoriesAsync();
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var filter = new PublicReportFilter
+        {
+            City = string.IsNullOrWhiteSpace(_city) ? null : _city,
+            ReportCategoryId = _categoryId,
+            Page = _page,
+            PageSize = PageSize,
+        };
+        var paged = await Reports.GetPublicListAsync(filter);
+        _items = paged.Items.ToList();
+        _total = paged.TotalCount;
+        _loading = false;
+    }
+
+    private async Task ApplyAsync() { _page = 1; await LoadAsync(); }
+    private async Task ResetAsync() { _city = null; _categoryId = null; _page = 1; await LoadAsync(); }
+    private async Task OnPageChangedAsync(int page) { _page = page; await LoadAsync(); }
+
+    private static string FormatRange(DateOnly from, DateOnly to) =>
+        from == to ? from.ToString("MMM d, yyyy") : $"{from:MMM d} – {to:MMM d, yyyy}";
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+}

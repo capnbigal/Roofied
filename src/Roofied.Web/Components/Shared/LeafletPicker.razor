@@ -1,0 +1,41 @@
+@implements IAsyncDisposable
+@inject IJSRuntime JS
+
+<div id="@_elementId" style="height:@Height; width:100%; border-radius:8px; overflow:hidden;"
+     role="application" aria-label="Pick an approximate location by clicking the map"></div>
+
+@code {
+    [Parameter] public EventCallback<(double Lat, double Lng)> OnPicked { get; set; }
+    [Parameter] public string Height { get; set; } = "320px";
+    [Parameter] public double CenterLat { get; set; } = 39.5;
+    [Parameter] public double CenterLng { get; set; } = -98.35;
+    [Parameter] public int Zoom { get; set; } = 4;
+
+    private readonly string _elementId = "picker-" + Guid.NewGuid().ToString("N");
+    private DotNetObjectReference<LeafletPicker>? _ref;
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _ref = DotNetObjectReference.Create(this);
+            await JS.InvokeVoidAsync("roofiedMap.initPicker", _elementId, _ref,
+                new { lat = CenterLat, lng = CenterLng, zoom = Zoom });
+            _initialized = true;
+        }
+    }
+
+    [JSInvokable]
+    public Task HandlePicked(double lat, double lng) => OnPicked.InvokeAsync((lat, lng));
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+        {
+            try { await JS.InvokeVoidAsync("roofiedMap.dispose", _elementId); }
+            catch { /* circuit gone */ }
+        }
+        _ref?.Dispose();
+    }
+}

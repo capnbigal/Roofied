@@ -1,0 +1,89 @@
+@page "/channels/{Slug}/new"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.RegisteredUser)]
+@inject IChannelService Channels
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>New post</PageTitle>
+
+@if (_channel is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudButton Href="@($"/channels/{Slug}")" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mb-2">Back to @_channel.Name</MudButton>
+    <MudText Typo="Typo.h4" Class="mb-3">New post in @_channel.Name</MudText>
+
+    <MudPaper Outlined="true" Class="pa-4 mb-3">
+        <MudText Typo="Typo.subtitle1" Class="mb-1"><MudIcon Icon="@Icons.Material.Filled.Rule" Class="mr-1" />Posting guidelines</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary" Style="white-space:pre-line">@_channel.Guidelines</MudText>
+    </MudPaper>
+
+    @if (_channel.IsLocked)
+    {
+        <MudAlert Severity="Severity.Warning">This channel is locked and isn't accepting new posts.</MudAlert>
+        return;
+    }
+
+    <MudForm>
+        <MudTextField @bind-Value="_input.Title" Label="Title" Required="true" Variant="Variant.Outlined" Counter="160" MaxLength="160" Class="mb-3" />
+        <MudTextField @bind-Value="_input.Body" Label="Your message" Lines="8" Required="true" Variant="Variant.Outlined" Counter="8000" MaxLength="8000"
+                      HelperText="Be supportive. Don't name or accuse identifiable people or businesses. No personal information." Class="mb-3" />
+        <MudSwitch T="bool" @bind-Value="_input.PostAnonymously" Color="Color.Primary" Label="Post anonymously (hide my display name)" />
+        <MudCheckBox T="bool" @bind-Value="_input.GuidelinesAcknowledged" Color="Color.Primary"
+                     Label="I have read and will follow the posting guidelines." Class="mt-2" />
+        <CaptchaWidget @ref="_captcha" />
+        <MudAlert Severity="Severity.Info" Dense="true" Variant="Variant.Outlined" Class="my-2">
+            Your post will be held for moderator review before it appears.
+        </MudAlert>
+        @if (!string.IsNullOrEmpty(_error))
+        {
+            <MudAlert Severity="Severity.Error" Dense="true" Class="mb-2">@_error</MudAlert>
+        }
+        <MudButton OnClick="SubmitAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Send">
+            @(_busy ? "Submitting…" : "Submit for review")
+        </MudButton>
+    </MudForm>
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private ChannelDto? _channel;
+    private readonly ChannelPostInput _input = new();
+    private CaptchaWidget? _captcha;
+    private bool _busy;
+    private string? _error;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _channel = await Channels.GetChannelBySlugAsync(Slug);
+        if (_channel is not null)
+            _input.ChannelId = _channel.Id;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            if (_captcha is not null)
+                _input.CaptchaToken = await _captcha.GetTokenAsync();
+            var result = await Channels.CreatePostAsync(_input);
+            if (!result.Succeeded)
+            {
+                _error = result.Error;
+                return;
+            }
+            Snackbar.Add("Your post was submitted and is awaiting review.", Severity.Success);
+            Nav.NavigateTo($"/channels/{Slug}");
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

@@ -1,0 +1,109 @@
+@page "/admin/resources"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanAdministerPlatform)]
+@inject IResourceService Resources
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>Resources</PageTitle>
+
+<div class="d-flex align-center justify-space-between mb-3">
+    <MudText Typo="Typo.h4">Resources</MudText>
+    <MudButton OnClick="@(() => Edit(new ResourceInput()))" Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add">Add resource</MudButton>
+</div>
+
+@if (_items is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="_items" Dense="true" Hover="true" Elevation="1">
+        <HeaderContent>
+            <MudTh>Title</MudTh>
+            <MudTh>Category</MudTh>
+            <MudTh>Region</MudTh>
+            <MudTh>Emergency</MudTh>
+            <MudTh>Published</MudTh>
+            <MudTh></MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Title</MudTd>
+            <MudTd>@context.Category</MudTd>
+            <MudTd>@(context.Region ?? "All")</MudTd>
+            <MudTd>@(context.IsEmergency ? "Yes" : "")</MudTd>
+            <MudTd>@(context.IsPublished ? "Yes" : "No")</MudTd>
+            <MudTd>
+                <MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => EditExisting(context))" />
+                <MudIconButton Icon="@Icons.Material.Filled.Delete" Size="Size.Small" Color="Color.Error" OnClick="@(() => DeleteAsync(context.Id))" />
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@if (_edit is not null)
+{
+    <MudPaper Outlined="true" Class="pa-4 mt-3">
+        <MudText Typo="Typo.subtitle1">@(_edit.Id is null ? "New resource" : "Edit resource")</MudText>
+        <MudGrid>
+            <MudItem xs="12" sm="8"><MudTextField @bind-Value="_edit.Title" Label="Title" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="4">
+                <MudSelect T="ResourceCategory" @bind-Value="_edit.Category" Label="Category" Variant="Variant.Outlined" Margin="Margin.Dense">
+                    @foreach (var c in Enum.GetValues<ResourceCategory>())
+                    {
+                        <MudSelectItem T="ResourceCategory" Value="c">@c</MudSelectItem>
+                    }
+                </MudSelect>
+            </MudItem>
+            <MudItem xs="12"><MudTextField @bind-Value="_edit.Description" Label="Description (safe HTML allowed)" Lines="4" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="6"><MudTextField @bind-Value="_edit.Url" Label="URL" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="3"><MudTextField @bind-Value="_edit.PhoneNumber" Label="Phone" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="3"><MudTextField @bind-Value="_edit.Region" Label="Region (blank = all)" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="3"><MudNumericField @bind-Value="_edit.SortOrder" Label="Order" Variant="Variant.Outlined" Margin="Margin.Dense" /></MudItem>
+            <MudItem xs="12" sm="9" Class="d-flex align-center" style="gap:16px;">
+                <MudSwitch T="bool" @bind-Value="_edit.IsEmergency" Color="Color.Error" Label="Emergency" />
+                <MudSwitch T="bool" @bind-Value="_edit.IsPublished" Color="Color.Primary" Label="Published" />
+            </MudItem>
+        </MudGrid>
+        <div class="mt-2 d-flex" style="gap:8px;">
+            <MudButton OnClick="SaveAsync" Variant="Variant.Filled" Color="Color.Primary">Save</MudButton>
+            <MudButton OnClick="@(() => _edit = null)" Variant="Variant.Text">Cancel</MudButton>
+        </div>
+    </MudPaper>
+}
+
+@code {
+    private IReadOnlyList<ResourceDto>? _items;
+    private ResourceInput? _edit;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _items = await Resources.GetAllAsync();
+
+    private void Edit(ResourceInput input) => _edit = input;
+
+    private void EditExisting(ResourceDto r) => _edit = new ResourceInput
+    {
+        Id = r.Id, Title = r.Title, Category = r.Category, Description = r.Description,
+        Url = r.Url, PhoneNumber = r.PhoneNumber, Region = r.Region,
+        IsEmergency = r.IsEmergency, SortOrder = r.SortOrder, IsPublished = r.IsPublished,
+    };
+
+    private async Task SaveAsync()
+    {
+        if (_edit is null) return;
+        var r = await Resources.UpsertAsync(_edit);
+        Snackbar.Add(r.Succeeded ? "Saved." : (r.Error ?? "Failed."), r.Succeeded ? Severity.Success : Severity.Error);
+        if (r.Succeeded) _edit = null;
+        await LoadAsync();
+    }
+
+    private async Task DeleteAsync(Guid id)
+    {
+        var confirm = await Dialogs.ShowMessageBox("Delete resource", "Remove this resource?", yesText: "Delete", cancelText: "Cancel");
+        if (confirm != true) return;
+        var r = await Resources.DeleteAsync(id);
+        Snackbar.Add(r.Succeeded ? "Deleted." : (r.Error ?? "Failed."), r.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+}

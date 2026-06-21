@@ -1,0 +1,98 @@
+@page "/moderator/posts"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanModerateChannels)]
+@inject IModerationService Moderation
+@inject ISnackbar Snackbar
+
+<PageTitle>Post queue</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">Channel post queue</MudText>
+
+<MudTabs Elevation="0" Rounded="true" Class="mb-3" @bind-ActivePanelIndex="_tab">
+    <MudTabPanel Text="Pending" />
+    <MudTabPanel Text="Approved" />
+    <MudTabPanel Text="Hidden" />
+</MudTabs>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_items.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 text-center mud-text-secondary"><MudText>Nothing here.</MudText></MudPaper>
+}
+else
+{
+    @foreach (var p in _items)
+    {
+        <MudCard Outlined="true" Class="mb-2">
+            <MudCardContent>
+                <div class="d-flex align-center flex-wrap" style="gap:8px;">
+                    <MudText Typo="Typo.subtitle1">@p.Title</MudText>
+                    <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@p.ChannelName</MudChip>
+                    @if (p.IsPinned) { <MudChip T="string" Size="Size.Small" Color="Color.Secondary">Pinned</MudChip> }
+                    @if (p.IsLocked) { <MudChip T="string" Size="Size.Small" Color="Color.Warning">Locked</MudChip> }
+                    @if (p.OpenFlagCount > 0) { <MudChip T="string" Size="Size.Small" Color="Color.Error">@p.OpenFlagCount flags</MudChip> }
+                </div>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@(string.IsNullOrWhiteSpace(p.AuthorDisplayName) ? "Anonymous" : p.AuthorDisplayName) · @p.CreatedUtc.ToString("g")</MudText>
+                <MudText Typo="Typo.body2" Class="mt-2" Style="white-space:pre-line">@p.Body</MudText>
+            </MudCardContent>
+            <MudCardActions Class="flex-wrap" Style="gap:6px;">
+                @if (p.Status != ChannelPostStatus.Approved)
+                {
+                    <MudButton OnClick="@(() => Run(Moderation.ApprovePostAsync(p.Id), "Approved."))" Size="Size.Small" Color="Color.Success" Variant="Variant.Filled">Approve</MudButton>
+                }
+                <MudButton OnClick="@(() => Run(Moderation.HidePostAsync(p.Id), "Hidden."))" Size="Size.Small" Color="Color.Warning" Variant="Variant.Outlined">Hide</MudButton>
+                <MudButton OnClick="@(() => Run(Moderation.RejectPostAsync(p.Id, "Rejected by moderator."), "Rejected."))" Size="Size.Small" Color="Color.Error" Variant="Variant.Outlined">Reject</MudButton>
+                <MudButton OnClick="@(() => Run(Moderation.SetPostPinnedAsync(p.Id, !p.IsPinned), "Updated."))" Size="Size.Small" Variant="Variant.Text">@(p.IsPinned ? "Unpin" : "Pin")</MudButton>
+                <MudButton OnClick="@(() => Run(Moderation.SetPostLockedAsync(p.Id, !p.IsLocked), "Updated."))" Size="Size.Small" Variant="Variant.Text">@(p.IsLocked ? "Unlock" : "Lock")</MudButton>
+            </MudCardActions>
+        </MudCard>
+    }
+
+    <div class="d-flex justify-center mt-3">
+        <MudPagination Count="@_pageCount" Selected="_page" SelectedChanged="OnPageChangedAsync" />
+    </div>
+}
+
+@code {
+    private int _tab;
+    private int _lastTab = -1;
+    private List<ChannelPostModerationDto> _items = new();
+    private int _page = 1;
+    private const int PageSize = 20;
+    private int _total;
+    private int _pageCount => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_tab != _lastTab) { _lastTab = _tab; _page = 1; await LoadAsync(); }
+    }
+
+    private ChannelPostStatus? StatusForTab() => _tab switch
+    {
+        1 => ChannelPostStatus.Approved,
+        2 => ChannelPostStatus.Hidden,
+        _ => ChannelPostStatus.PendingReview,
+    };
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var paged = await Moderation.GetPostQueueAsync(StatusForTab(), _page, PageSize);
+        _items = paged.Items.ToList();
+        _total = paged.TotalCount;
+        _loading = false;
+    }
+
+    private async Task OnPageChangedAsync(int page) { _page = page; await LoadAsync(); }
+
+    private async Task Run(Task<OperationResult> action, string ok)
+    {
+        var result = await action;
+        Snackbar.Add(result.Succeeded ? ok : (result.Error ?? "Failed."), result.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+}

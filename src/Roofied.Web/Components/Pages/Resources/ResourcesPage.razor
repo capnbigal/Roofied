@@ -1,0 +1,91 @@
+@page "/resources"
+@rendermode InteractiveServer
+@inject IResourceService Resources
+
+<PageTitle>Get help &amp; resources</PageTitle>
+
+<MudAlert Severity="Severity.Error" Variant="Variant.Filled" Class="mb-4" Icon="@Icons.Material.Filled.Emergency">
+    <MudText Typo="Typo.h6">In an emergency, contact your local emergency services now.</MudText>
+    <MudText Typo="Typo.body2">
+        If you or someone else is in immediate danger or needs urgent medical help, call your local emergency number
+        (for example, 911 in the US). This site is not a substitute for emergency, medical, police, or crisis support.
+    </MudText>
+</MudAlert>
+
+<MudText Typo="Typo.h4" Class="mb-1">Get help &amp; resources</MudText>
+<MudText Typo="Typo.body2" Class="mud-text-secondary mb-4">
+    Availability and recommendations vary by region. The guidance below is general information, not legal or medical advice.
+</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    @foreach (var group in _grouped)
+    {
+        <MudText Typo="Typo.h6" Class="mt-4 mb-2">@FriendlyCategory(group.Key)</MudText>
+        <MudGrid>
+            @foreach (var r in group)
+            {
+                <MudItem xs="12" md="6">
+                    <MudCard Outlined="true" Class="h-100">
+                        <MudCardContent>
+                            <div class="d-flex align-center" style="gap:8px;">
+                                @if (r.IsEmergency)
+                                {
+                                    <MudIcon Icon="@Icons.Material.Filled.Warning" Color="Color.Error" />
+                                }
+                                <MudText Typo="Typo.subtitle1">@r.Title</MudText>
+                            </div>
+                            @if (!string.IsNullOrWhiteSpace(r.Region))
+                            {
+                                <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@r.Region</MudChip>
+                            }
+                            @if (!string.IsNullOrWhiteSpace(r.Description))
+                            {
+                                <MudText Typo="Typo.body2" Class="mt-1">@((MarkupString)r.Description)</MudText>
+                            }
+                        </MudCardContent>
+                        @if (!string.IsNullOrWhiteSpace(r.Url) || !string.IsNullOrWhiteSpace(r.PhoneNumber))
+                        {
+                            <MudCardActions>
+                                @if (!string.IsNullOrWhiteSpace(r.PhoneNumber))
+                                {
+                                    <MudButton Href="@($"tel:{r.PhoneNumber}")" StartIcon="@Icons.Material.Filled.Phone" Variant="Variant.Text">@r.PhoneNumber</MudButton>
+                                }
+                                @if (!string.IsNullOrWhiteSpace(r.Url))
+                                {
+                                    <MudButton Href="@r.Url" Target="_blank" StartIcon="@Icons.Material.Filled.OpenInNew" Variant="Variant.Text">Visit</MudButton>
+                                }
+                            </MudCardActions>
+                        }
+                    </MudCard>
+                </MudItem>
+            }
+        </MudGrid>
+    }
+}
+
+@code {
+    private bool _loading = true;
+    private List<IGrouping<ResourceCategory, ResourceDto>> _grouped = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        var items = await Resources.GetPublishedAsync();
+        _grouped = items.GroupBy(r => r.Category).OrderBy(g => g.Key).ToList();
+        _loading = false;
+    }
+
+    private static string FriendlyCategory(ResourceCategory c) => c switch
+    {
+        ResourceCategory.Emergency => "Emergency",
+        ResourceCategory.Medical => "Medical care",
+        ResourceCategory.Support => "Support",
+        ResourceCategory.EvidencePreservation => "Preserving evidence",
+        ResourceCategory.Legal => "Legal",
+        _ => "General",
+    };
+}

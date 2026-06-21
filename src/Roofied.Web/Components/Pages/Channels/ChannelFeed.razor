@@ -1,0 +1,113 @@
+@page "/channels/{Slug}"
+@rendermode InteractiveServer
+@inject IChannelService Channels
+
+<PageTitle>@(_channel?.Name ?? "Channel")</PageTitle>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_channel is null)
+{
+    <MudPaper Class="pa-8 text-center" Outlined="true">
+        <MudText Typo="Typo.h6">Channel not found</MudText>
+        <MudButton Href="/channels" Variant="Variant.Filled" Color="Color.Primary" Class="mt-2">All channels</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudButton Href="/channels" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mb-2">All channels</MudButton>
+
+    <div class="d-flex flex-wrap align-center justify-space-between mb-2" style="gap:12px;">
+        <div>
+            <MudText Typo="Typo.h4">@_channel.Name</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary">@_channel.Description</MudText>
+        </div>
+        @if (!_channel.IsLocked)
+        {
+            <MudButton Href="@($"/channels/{Slug}/new")" Variant="Variant.Filled" Color="Color.Primary"
+                       StartIcon="@Icons.Material.Filled.Edit">New post</MudButton>
+        }
+        else
+        {
+            <MudChip T="string" Color="Color.Warning" Variant="Variant.Text">This channel is locked</MudChip>
+        }
+    </div>
+
+    <MudPaper Outlined="true" Class="pa-3 mb-3 d-flex" style="gap:8px;">
+        <MudTextField @bind-Value="_search" Label="Search posts" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" Immediate="false" />
+        <MudButton OnClick="SearchAsync" Variant="Variant.Filled" Color="Color.Primary" Class="align-self-center">Search</MudButton>
+    </MudPaper>
+
+    @if (_posts.Count == 0)
+    {
+        <MudPaper Outlined="true" Class="pa-8 text-center mud-text-secondary">
+            <MudIcon Icon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Large" />
+            <MudText Typo="Typo.body1" Class="mt-2">No posts yet. Be the first to start a supportive conversation.</MudText>
+        </MudPaper>
+    }
+    else
+    {
+        @foreach (var p in _posts)
+        {
+            <MudCard Outlined="true" Class="mb-2">
+                <MudCardContent>
+                    <div class="d-flex align-center" style="gap:8px;">
+                        @if (p.IsPinned)
+                        {
+                            <MudIcon Icon="@Icons.Material.Filled.PushPin" Color="Color.Secondary" Size="Size.Small" />
+                        }
+                        <MudText Typo="Typo.h6">@p.Title</MudText>
+                    </div>
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                        @(string.IsNullOrWhiteSpace(p.AuthorDisplayName) ? "Anonymous" : p.AuthorDisplayName)
+                        · @(p.PublishedUtc?.ToString("MMM d, yyyy") ?? "")
+                    </MudText>
+                    <MudText Typo="Typo.body2" Class="mt-2">@Truncate(p.Body, 240)</MudText>
+                </MudCardContent>
+                <MudCardActions>
+                    <MudButton Href="@($"/channels/post/{p.Id}")" Variant="Variant.Text" Color="Color.Primary">Read</MudButton>
+                </MudCardActions>
+            </MudCard>
+        }
+
+        <div class="d-flex justify-center mt-3">
+            <MudPagination Count="@_pageCount" Selected="_page" SelectedChanged="OnPageChangedAsync" />
+        </div>
+    }
+}
+
+@code {
+    [Parameter] public string Slug { get; set; } = string.Empty;
+
+    private ChannelDto? _channel;
+    private List<ChannelPostDto> _posts = new();
+    private string? _search;
+    private int _page = 1;
+    private const int PageSize = 10;
+    private int _total;
+    private int _pageCount => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+    private bool _loading = true;
+
+    protected override async Task OnParametersSetAsync()
+    {
+        _loading = true;
+        _channel = await Channels.GetChannelBySlugAsync(Slug);
+        if (_channel is not null)
+            await LoadAsync();
+        _loading = false;
+    }
+
+    private async Task LoadAsync()
+    {
+        var paged = await Channels.GetPostsAsync(Slug, _search, _page, PageSize);
+        _posts = paged.Items.ToList();
+        _total = paged.TotalCount;
+    }
+
+    private async Task SearchAsync() { _page = 1; await LoadAsync(); }
+    private async Task OnPageChangedAsync(int page) { _page = page; await LoadAsync(); }
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+}

@@ -1,0 +1,33 @@
+<MudNavMenu>
+    <MudNavLink Href="/" Match="NavLinkMatch.All" Icon="@Icons.Material.Filled.Map">Map &amp; latest reports</MudNavLink>
+    <MudNavLink Href="/report/new" Icon="@Icons.Material.Filled.AddLocationAlt">Submit a report</MudNavLink>
+    <MudNavLink Href="/reports" Icon="@Icons.Material.Filled.List">Browse reports</MudNavLink>
+    <MudNavLink Href="/channels" Icon="@Icons.Material.Filled.Forum">Community channels</MudNavLink>
+    <MudNavLink Href="/resources" Icon="@Icons.Material.Filled.Emergency">Get help / resources</MudNavLink>
+
+    <AuthorizeView Policy="@PolicyNames.RegisteredUser">
+        <MudDivider Class="my-2" />
+        <MudNavLink Href="/account/my-reports" Icon="@Icons.Material.Filled.Folder">My reports</MudNavLink>
+        <MudNavLink Href="/account/my-posts" Icon="@Icons.Material.Filled.ChatBubble">My posts</MudNavLink>
+    </AuthorizeView>
+
+    <AuthorizeView Policy="@PolicyNames.CanModerateReports">
+        <MudDivider Class="my-2" />
+        <MudNavGroup Title="Moderation" Icon="@Icons.Material.Filled.Gavel" Expanded="false">
+            <MudNavLink Href="/moderator" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudNavLink>
+            <MudNavLink Href="/moderator/reports" Icon="@Icons.Material.Filled.FactCheck">Report queue</MudNavLink>
+            <MudNavLink Href="/moderator/posts" Icon="@Icons.Material.Filled.Forum">Post queue</MudNavLink>
+            <MudNavLink Href="/moderator/flags" Icon="@Icons.Material.Filled.Flag">Flags</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+
+    <AuthorizeView Policy="@PolicyNames.CanAdministerPlatform">
+        <MudNavGroup Title="Administration" Icon="@Icons.Material.Filled.AdminPanelSettings" Expanded="false">
+            <MudNavLink Href="/admin" Icon="@Icons.Material.Filled.Insights">Overview</MudNavLink>
+            <MudNavLink Href="/admin/users" Icon="@Icons.Material.Filled.People">Users &amp; roles</MudNavLink>
+            <MudNavLink Href="/admin/categories" Icon="@Icons.Material.Filled.Category">Categories</MudNavLink>
+            <MudNavLink Href="/admin/channels" Icon="@Icons.Material.Filled.Tune">Channels</MudNavLink>
+            <MudNavLink Href="/admin/resources" Icon="@Icons.Material.Filled.MenuBook">Resources</MudNavLink>
+        </MudNavGroup>
+    </AuthorizeView>
+</MudNavMenu>

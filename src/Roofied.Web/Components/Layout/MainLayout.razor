@@ -1,0 +1,83 @@
+@inherits LayoutComponentBase
+
+<MudThemeProvider @ref="_themeProvider" @bind-IsDarkMode="_isDarkMode" Theme="_theme" />
+<MudPopoverProvider />
+<MudDialogProvider CloseButton="true" MaxWidth="MaxWidth.Medium" FullWidth="true" />
+<MudSnackbarProvider />
+
+<MudLayout>
+    <MudAppBar Elevation="1" Color="Color.Surface">
+        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
+                       OnClick="@ToggleDrawer" aria-label="Toggle navigation" />
+        <MudLink Href="/" Underline="Underline.None" Color="Color.Inherit" Class="d-flex align-center">
+            <MudIcon Icon="@Icons.Material.Filled.Shield" Class="mr-2" />
+            <MudText Typo="Typo.h6">Roofied</MudText>
+        </MudLink>
+        <MudSpacer />
+        <MudButton Href="/resources" StartIcon="@Icons.Material.Filled.Emergency" Color="Color.Error"
+                   Variant="Variant.Filled" Class="mr-2">Get Help Now</MudButton>
+        <MudTooltip Text="Toggle light/dark mode">
+            <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           Color="Color.Inherit" OnClick="@(() => _isDarkMode = !_isDarkMode)" aria-label="Toggle theme" />
+        </MudTooltip>
+        <AuthorizeView>
+            <Authorized>
+                <MudMenu Icon="@Icons.Material.Filled.AccountCircle" Color="Color.Inherit" AriaLabel="Account menu">
+                    <MudMenuItem Href="/account/my-reports">My reports</MudMenuItem>
+                    <MudMenuItem Href="/account/my-posts">My posts</MudMenuItem>
+                    <MudMenuItem Href="/Account/Manage">Account settings</MudMenuItem>
+                    <MudDivider />
+                    <MudMenuItem Href="/Account/Logout">Sign out</MudMenuItem>
+                </MudMenu>
+            </Authorized>
+            <NotAuthorized>
+                <MudButton Href="/Account/Login" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Login">Sign in</MudButton>
+            </NotAuthorized>
+        </AuthorizeView>
+    </MudAppBar>
+
+    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always" Variant="DrawerVariant.Responsive">
+        <NavMenu />
+    </MudDrawer>
+
+    <MudMainContent>
+        <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
+            @Body
+        </MudContainer>
+    </MudMainContent>
+</MudLayout>
+
+<div id="blazor-error-ui" data-nosnippet>
+    An unhandled error has occurred.
+    <a href="." class="reload">Reload</a>
+    <span class="dismiss">🗙</span>
+</div>
+
+@code {
+    private bool _drawerOpen = true;
+    private bool _isDarkMode;
+    private MudThemeProvider _themeProvider = null!;
+
+    private readonly MudTheme _theme = new()
+    {
+        PaletteLight = new PaletteLight
+        {
+            Primary = "#3a5a78",      // calm slate blue
+            Secondary = "#5b8a72",    // muted green
+            AppbarBackground = "#ffffff",
+            AppbarText = "#1f2933",
+            Background = "#f7f8fa",
+        },
+        PaletteDark = new PaletteDark
+        {
+            Primary = "#7fa6c4",
+            Secondary = "#8fbfa6",
+        },
+        Typography = new Typography
+        {
+            Default = new DefaultTypography { FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" } },
+        },
+    };
+
+    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
+}

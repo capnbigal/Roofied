@@ -1,0 +1,19 @@
+<MudChip T="string" Size="Size.Small" Variant="Variant.Filled" Color="@_color">@_label</MudChip>
+
+@code {
+    [Parameter] public SuspicionLevel Level { get; set; }
+
+    private Color _color => Level switch
+    {
+        SuspicionLevel.ConfirmedByMedicalTesting => Color.Error,
+        SuspicionLevel.Suspected => Color.Warning,
+        _ => Color.Default,
+    };
+
+    private string _label => Level switch
+    {
+        SuspicionLevel.ConfirmedByMedicalTesting => "Confirmed (medical)",
+        SuspicionLevel.Suspected => "Suspected",
+        _ => "Unknown",
+    };
+}

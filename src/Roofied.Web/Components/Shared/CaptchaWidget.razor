@@ -1,0 +1,26 @@
+@inject ICaptchaVerifier Captcha
+@inject IJSRuntime JS
+
+@* Renders the Cloudflare Turnstile widget when enabled. When disabled (dev), renders nothing and
+   GetTokenAsync returns an empty string, which the server accepts. *@
+@if (Captcha.IsEnabled && !string.IsNullOrWhiteSpace(Captcha.SiteKey))
+{
+    <div class="cf-turnstile mb-2" data-sitekey="@Captcha.SiteKey"></div>
+}
+
+@code {
+    /// <summary>Reads the current challenge token from the client widget (empty when disabled).</summary>
+    public async Task<string?> GetTokenAsync()
+    {
+        if (!Captcha.IsEnabled)
+            return null;
+        try { return await JS.InvokeAsync<string>("roofiedCaptcha.getToken"); }
+        catch { return null; }
+    }
+
+    public async Task ResetAsync()
+    {
+        if (!Captcha.IsEnabled) return;
+        try { await JS.InvokeVoidAsync("roofiedCaptcha.reset"); } catch { /* ignore */ }
+    }
+}

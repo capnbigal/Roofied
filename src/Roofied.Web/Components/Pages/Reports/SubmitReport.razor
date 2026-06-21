@@ -1,0 +1,240 @@
+@page "/report/new"
+@rendermode InteractiveServer
+@inject IReportService Reports
+@inject ILookupService Lookups
+@inject ISnackbar Snackbar
+@inject NavigationManager Nav
+
+<PageTitle>Submit a report</PageTitle>
+
+<MudContainer MaxWidth="MaxWidth.Medium" Class="px-0">
+    <MudText Typo="Typo.h4" Class="mb-1">Submit a report</MudText>
+    <MudText Typo="Typo.body2" Class="mud-text-secondary mb-3">
+        Thank you for sharing. Take your time. Every report is reviewed by a moderator before anything is
+        published, and your exact location, time, and identity are never shown publicly.
+    </MudText>
+
+    <SafetyNotice />
+
+    @if (_submitted)
+    {
+        <MudPaper Elevation="1" Class="pa-6 text-center">
+            <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" Size="Size.Large" />
+            <MudText Typo="Typo.h6" Class="mt-2">Your report has been received</MudText>
+            <MudText Typo="Typo.body2" Class="mud-text-secondary mt-1">
+                Reference code: <b>@_referenceCode</b>. A moderator will review it before it may appear publicly.
+                If you created an account, you can track its status under “My reports”.
+            </MudText>
+            <div class="mt-4 d-flex justify-center" style="gap:8px;">
+                <MudButton Href="/" Variant="Variant.Filled" Color="Color.Primary">Back to map</MudButton>
+                <MudButton Href="/resources" Variant="Variant.Outlined" Color="Color.Error"
+                           StartIcon="@Icons.Material.Filled.Emergency">Get help now</MudButton>
+            </div>
+        </MudPaper>
+        return;
+    }
+
+    <MudForm @ref="_form" Model="_model">
+        <MudExpansionPanels MultiExpansion="true" Elevation="1">
+
+            <MudExpansionPanel Text="1. When did this happen?" Expanded="true">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudDatePicker Label="Incident date" @bind-Date="_incidentDate" Required="true"
+                                       MaxDate="DateTime.Today.AddDays(1)" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudTimePicker Label="Approximate time (optional)" @bind-Time="_approxTime" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Only a general date range is shown publicly — never the exact time.</MudText>
+            </MudExpansionPanel>
+
+            <MudExpansionPanel Text="2. Where did this happen?" Expanded="true">
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_model.City" Label="City / area" Required="true" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_model.Region" Label="Region / state (optional)" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_model.Country" Label="Country (optional)" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="Guid?" Label="Location type" @bind-Value="_model.VenueCategoryId" Variant="Variant.Outlined">
+                            @foreach (var v in _venues)
+                            {
+                                <MudSelectItem T="Guid?" Value="@v.Id">@v.Name</MudSelectItem>
+                            }
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+                <MudText Typo="Typo.subtitle2" Class="mt-3">Approximate location (optional)</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                    Click the map near where it happened. We store this privately and only ever show a generalized
+                    area publicly — never the exact point.
+                </MudText>
+                <div class="mt-2">
+                    <LeafletPicker OnPicked="OnLocationPicked" Height="300px" />
+                </div>
+                @if (_model.Latitude.HasValue)
+                {
+                    <MudChip T="string" Size="Size.Small" Color="Color.Secondary" Class="mt-2">Approximate point selected</MudChip>
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="ClearLocation">Clear</MudButton>
+                }
+            </MudExpansionPanel>
+
+            <MudExpansionPanel Text="3. What happened?" Expanded="true">
+                <MudSelect T="Guid?" Label="Incident type" @bind-Value="_model.ReportCategoryId" Required="true" Variant="Variant.Outlined" Class="mb-3">
+                    @foreach (var c in _categories)
+                    {
+                        <MudSelectItem T="Guid?" Value="@c.Id">@c.Name</MudSelectItem>
+                    }
+                </MudSelect>
+                <MudSelect T="SuspicionLevel" Label="How confident are you?" @bind-Value="_model.SuspicionLevel" Variant="Variant.Outlined" Class="mb-3">
+                    <MudSelectItem T="SuspicionLevel" Value="SuspicionLevel.Suspected">Suspected</MudSelectItem>
+                    <MudSelectItem T="SuspicionLevel" Value="SuspicionLevel.ConfirmedByMedicalTesting">Confirmed by medical testing</MudSelectItem>
+                    <MudSelectItem T="SuspicionLevel" Value="SuspicionLevel.Unknown">Unsure</MudSelectItem>
+                </MudSelect>
+                <MudTextField @bind-Value="_model.Narrative" Label="In your own words (optional)" Lines="5"
+                              Variant="Variant.Outlined" Counter="8000" MaxLength="8000" Class="mb-1"
+                              HelperText="Please avoid naming specific people or businesses. Moderators review and summarize before anything is published." />
+                <MudTextField @bind-Value="_model.Symptoms" Label="Symptoms or concerns (optional)" Lines="3"
+                              Variant="Variant.Outlined" Counter="4000" MaxLength="4000" />
+            </MudExpansionPanel>
+
+            <MudExpansionPanel Text="4. Care & reporting (optional)">
+                <MudGrid>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="bool?" Label="Did you seek medical care?" @bind-Value="_model.MedicalCareSought" Variant="Variant.Outlined">
+                            <MudSelectItem T="bool?" Value="true">Yes</MudSelectItem>
+                            <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                            <MudSelectItem T="bool?" Value="@((bool?)null)">Prefer not to say</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                    <MudItem xs="12" sm="6">
+                        <MudSelect T="bool?" Label="Was a police report filed?" @bind-Value="_model.PoliceReportFiled" Variant="Variant.Outlined">
+                            <MudSelectItem T="bool?" Value="true">Yes</MudSelectItem>
+                            <MudSelectItem T="bool?" Value="false">No</MudSelectItem>
+                            <MudSelectItem T="bool?" Value="@((bool?)null)">Prefer not to say</MudSelectItem>
+                        </MudSelect>
+                    </MudItem>
+                </MudGrid>
+                <MudText Typo="Typo.subtitle2" Class="mt-3">Private contact for moderator follow-up (optional)</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">Stored separately and never shown publicly. Only used if a moderator needs to follow up.</MudText>
+                <MudGrid>
+                    <MudItem xs="12" sm="4">
+                        <MudTextField @bind-Value="_model.PrivateContactMethod" Label="Method (e.g. email)" Variant="Variant.Outlined" />
+                    </MudItem>
+                    <MudItem xs="12" sm="8">
+                        <MudTextField @bind-Value="_model.PrivateContactValue" Label="Contact detail" Variant="Variant.Outlined" />
+                    </MudItem>
+                </MudGrid>
+            </MudExpansionPanel>
+
+            <MudExpansionPanel Text="5. Privacy & consent" Expanded="true">
+                <AuthorizeView>
+                    <Authorized>
+                        <MudSwitch T="bool" @bind-Value="_model.PostAnonymously" Color="Color.Primary" Label="Submit anonymously (don't link this to my account)" />
+                        <MudSelect T="ReportVisibility" Label="Who should see this?" @bind-Value="_model.Visibility" Variant="Variant.Outlined" Class="mt-2">
+                            <MudSelectItem T="ReportVisibility" Value="ReportVisibility.Public">Public after moderation</MudSelectItem>
+                            <MudSelectItem T="ReportVisibility" Value="ReportVisibility.ModeratorOnly">Private to moderators</MudSelectItem>
+                            <MudSelectItem T="ReportVisibility" Value="ReportVisibility.PersonalDraft">Save as a personal draft</MudSelectItem>
+                        </MudSelect>
+                    </Authorized>
+                    <NotAuthorized>
+                        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+                            You are submitting anonymously. You don't need an account.
+                            <MudLink Href="/Account/Register">Create an account</MudLink> only if you'd like to track your report.
+                        </MudText>
+                    </NotAuthorized>
+                </AuthorizeView>
+
+                <MudCheckBox T="bool" @bind-Value="_model.SafetyNoticeAcknowledged" Color="Color.Primary" Class="mt-3"
+                             Label="I understand this site is not a substitute for emergency, medical, or police help." />
+                <MudCheckBox T="bool" @bind-Value="_model.ConsentAcknowledged" Color="Color.Primary"
+                             Label="I understand my report is reviewed before publication and will be shown only in an anonymized, generalized form." />
+
+                <CaptchaWidget @ref="_captcha" />
+
+                @if (!string.IsNullOrEmpty(_error))
+                {
+                    <MudAlert Severity="Severity.Error" Class="mt-2" Dense="true">@_error</MudAlert>
+                }
+
+                <div class="mt-4 d-flex" style="gap:8px;">
+                    <MudButton OnClick="SubmitAsync" Disabled="_busy" Variant="Variant.Filled" Color="Color.Primary"
+                               StartIcon="@Icons.Material.Filled.Send" Size="Size.Large">
+                        @(_busy ? "Submitting…" : "Submit report")
+                    </MudButton>
+                    <MudButton Href="/" Variant="Variant.Text">Cancel</MudButton>
+                </div>
+            </MudExpansionPanel>
+        </MudExpansionPanels>
+    </MudForm>
+</MudContainer>
+
+@code {
+    private MudForm _form = null!;
+    private CaptchaWidget? _captcha;
+    private readonly ReportSubmissionInput _model = new();
+    private IReadOnlyList<CategoryDto> _categories = Array.Empty<CategoryDto>();
+    private IReadOnlyList<CategoryDto> _venues = Array.Empty<CategoryDto>();
+    private DateTime? _incidentDate = DateTime.Today;
+    private TimeSpan? _approxTime;
+    private bool _busy;
+    private bool _submitted;
+    private string? _referenceCode;
+    private string? _error;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Lookups.GetReportCategoriesAsync();
+        _venues = await Lookups.GetVenueCategoriesAsync();
+    }
+
+    private void OnLocationPicked((double Lat, double Lng) p)
+    {
+        _model.Latitude = p.Lat;
+        _model.Longitude = p.Lng;
+        StateHasChanged();
+    }
+
+    private void ClearLocation()
+    {
+        _model.Latitude = null;
+        _model.Longitude = null;
+    }
+
+    private async Task SubmitAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            _model.IncidentDate = _incidentDate is { } d ? DateOnly.FromDateTime(d) : null;
+            _model.ApproximateTime = _approxTime is { } t ? TimeOnly.FromTimeSpan(t) : null;
+            if (_captcha is not null)
+                _model.CaptchaToken = await _captcha.GetTokenAsync();
+
+            var result = await Reports.SubmitAsync(_model);
+            if (!result.Succeeded)
+            {
+                _error = result.Error;
+                return;
+            }
+            _submitted = true;
+            _referenceCode = result.Value;
+            Snackbar.Add("Report received. Thank you.", Severity.Success);
+        }
+        catch (Exception)
+        {
+            _error = "Something went wrong submitting your report. Please try again.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

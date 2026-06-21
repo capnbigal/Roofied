@@ -1,0 +1,36 @@
+@page "/admin"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanAdministerPlatform)]
+@inject IAdminService Admin
+
+<PageTitle>Administration</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">Administration</MudText>
+
+@if (_metrics is null)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudGrid>
+        <MetricCard Title="Pending reports" Value="_metrics.PendingReports" Icon="@Icons.Material.Filled.FactCheck" Href="/moderator/reports" Color="Color.Info" />
+        <MetricCard Title="Approved reports" Value="_metrics.ApprovedReports" Icon="@Icons.Material.Filled.CheckCircle" Color="Color.Success" />
+        <MetricCard Title="Pending posts" Value="_metrics.PendingPosts" Icon="@Icons.Material.Filled.Forum" Href="/moderator/posts" Color="Color.Warning" />
+        <MetricCard Title="Open flags" Value="_metrics.OpenFlags" Icon="@Icons.Material.Filled.Flag" Href="/moderator/flags" Color="Color.Error" />
+        <MetricCard Title="Users" Value="_metrics.TotalUsers" Icon="@Icons.Material.Filled.People" Href="/admin/users" Color="Color.Primary" />
+        <MetricCard Title="Published resources" Value="_metrics.ResourcesPublished" Icon="@Icons.Material.Filled.MenuBook" Href="/admin/resources" Color="Color.Secondary" />
+    </MudGrid>
+
+    <MudGrid Class="mt-2">
+        <MudItem xs="12" sm="6" md="3"><MudButton Href="/admin/users" FullWidth="true" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.People">Users &amp; roles</MudButton></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudButton Href="/admin/categories" FullWidth="true" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Category">Categories</MudButton></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudButton Href="/admin/channels" FullWidth="true" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Tune">Channels</MudButton></MudItem>
+        <MudItem xs="12" sm="6" md="3"><MudButton Href="/admin/resources" FullWidth="true" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.MenuBook">Resources</MudButton></MudItem>
+    </MudGrid>
+}
+
+@code {
+    private DashboardMetrics? _metrics;
+    protected override async Task OnInitializedAsync() => _metrics = await Admin.GetMetricsAsync();
+}

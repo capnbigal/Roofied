@@ -1,0 +1,51 @@
+@page "/account/my-posts"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.RegisteredUser)]
+@inject IChannelService Channels
+@inject AuthenticationStateProvider AuthState
+
+<PageTitle>My posts</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">My posts</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_items.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 text-center mud-text-secondary">
+        <MudIcon Icon="@Icons.Material.Filled.ChatBubbleOutline" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-2">You haven't posted under your account yet.</MudText>
+        <MudButton Href="/channels" Variant="Variant.Filled" Color="Color.Primary" Class="mt-2">Browse channels</MudButton>
+    </MudPaper>
+}
+else
+{
+    @foreach (var p in _items)
+    {
+        <MudCard Outlined="true" Class="mb-2">
+            <MudCardContent>
+                <MudText Typo="Typo.subtitle1">@p.Title</MudText>
+                <MudText Typo="Typo.caption" Class="mud-text-secondary">@p.ChannelName</MudText>
+                <MudText Typo="Typo.body2" Class="mt-1">@Truncate(p.Body, 160)</MudText>
+            </MudCardContent>
+        </MudCard>
+    }
+}
+
+@code {
+    private List<ChannelPostDto> _items = new();
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        var userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        if (userId is not null)
+            _items = (await Channels.GetMyPostsAsync(userId)).ToList();
+        _loading = false;
+    }
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+}

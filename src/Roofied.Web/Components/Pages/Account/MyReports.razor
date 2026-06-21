@@ -1,0 +1,93 @@
+@page "/account/my-reports"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.RegisteredUser)]
+@inject IReportService Reports
+@inject AuthenticationStateProvider AuthState
+@inject ISnackbar Snackbar
+@inject IDialogService Dialogs
+
+<PageTitle>My reports</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">My reports</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_items.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 text-center mud-text-secondary">
+        <MudIcon Icon="@Icons.Material.Filled.FolderOpen" Size="Size.Large" />
+        <MudText Typo="Typo.body1" Class="mt-2">You haven't submitted any non-anonymous reports.</MudText>
+        <MudButton Href="/report/new" Variant="Variant.Filled" Color="Color.Primary" Class="mt-2">Submit a report</MudButton>
+    </MudPaper>
+}
+else
+{
+    <MudTable Items="_items" Hover="true" Dense="true" Elevation="1">
+        <HeaderContent>
+            <MudTh>Reference</MudTh>
+            <MudTh>Type</MudTh>
+            <MudTh>Area</MudTh>
+            <MudTh>Date</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.ReferenceCode</MudTd>
+            <MudTd>@context.IncidentTypeName</MudTd>
+            <MudTd>@context.City</MudTd>
+            <MudTd>@context.IncidentDateFrom.ToString("MMM d, yyyy")</MudTd>
+            <MudTd><ReportStatusChip Status="context.Status" /></MudTd>
+            <MudTd>
+                @if (context.Status == ReportStatus.Approved)
+                {
+                    <MudButton Href="@($"/reports/{context.Id}")" Size="Size.Small" Variant="Variant.Text">View public</MudButton>
+                }
+                @if (context.Status is ReportStatus.PendingReview or ReportStatus.NeedsClarification or ReportStatus.Draft)
+                {
+                    <MudButton OnClick="@(() => WithdrawAsync(context))" Size="Size.Small" Color="Color.Error" Variant="Variant.Text">Withdraw</MudButton>
+                }
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+}
+
+@code {
+    private List<MyReportDto> _items = new();
+    private bool _loading = true;
+    private string? _userId;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var state = await AuthState.GetAuthenticationStateAsync();
+        _userId = state.User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value;
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        if (_userId is null) return;
+        _items = (await Reports.GetMyReportsAsync(_userId)).ToList();
+        _loading = false;
+    }
+
+    private async Task WithdrawAsync(MyReportDto report)
+    {
+        var confirm = await Dialogs.ShowMessageBox("Withdraw report",
+            $"Withdraw report {report.ReferenceCode}? This removes it from review and it won't be published.",
+            yesText: "Withdraw", cancelText: "Keep");
+        if (confirm != true || _userId is null) return;
+
+        var result = await Reports.WithdrawAsync(report.Id, _userId);
+        if (result.Succeeded)
+        {
+            Snackbar.Add("Report withdrawn.", Severity.Success);
+            await LoadAsync();
+        }
+        else
+        {
+            Snackbar.Add(result.Error ?? "Could not withdraw.", Severity.Error);
+        }
+    }
+}

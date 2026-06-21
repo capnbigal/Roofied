@@ -1,0 +1,85 @@
+@page "/moderator/flags"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanModerateReports)]
+@inject IModerationService Moderation
+@inject ISnackbar Snackbar
+
+<PageTitle>Content flags</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">Content flags</MudText>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_items.Count == 0)
+{
+    <MudPaper Outlined="true" Class="pa-8 text-center mud-text-secondary"><MudText>No open flags. </MudText></MudPaper>
+}
+else
+{
+    <MudTable Items="_items" Hover="true" Dense="true" Elevation="1">
+        <HeaderContent>
+            <MudTh>Type</MudTh>
+            <MudTh>Content</MudTh>
+            <MudTh>Reason</MudTh>
+            <MudTh>Details</MudTh>
+            <MudTh>Reported</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.ContentType</MudTd>
+            <MudTd>
+                @if (context.ContentType == ModeratedContentType.Report)
+                {
+                    <MudLink Href="@($"/moderator/reports/{context.ContentId}")">Open report</MudLink>
+                }
+                else if (context.ContentType == ModeratedContentType.ChannelPost)
+                {
+                    <MudLink Href="@($"/channels/post/{context.ContentId}")">Open post</MudLink>
+                }
+                else { <text>@context.ContentId</text> }
+            </MudTd>
+            <MudTd>@context.Reason</MudTd>
+            <MudTd>@context.Details</MudTd>
+            <MudTd>@context.CreatedUtc.ToString("MMM d, yyyy")</MudTd>
+            <MudTd>
+                <MudButton OnClick="@(() => Run(Moderation.ResolveFlagAsync(context.Id, "Reviewed and actioned."), "Resolved."))" Size="Size.Small" Color="Color.Success" Variant="Variant.Text">Resolve</MudButton>
+                <MudButton OnClick="@(() => Run(Moderation.DismissFlagAsync(context.Id, "No action needed."), "Dismissed."))" Size="Size.Small" Variant="Variant.Text">Dismiss</MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <div class="d-flex justify-center mt-3">
+        <MudPagination Count="@_pageCount" Selected="_page" SelectedChanged="OnPageChangedAsync" />
+    </div>
+}
+
+@code {
+    private List<ContentFlagDto> _items = new();
+    private int _page = 1;
+    private const int PageSize = 20;
+    private int _total;
+    private int _pageCount => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var paged = await Moderation.GetFlagsAsync(FlagStatus.Open, _page, PageSize);
+        _items = paged.Items.ToList();
+        _total = paged.TotalCount;
+        _loading = false;
+    }
+
+    private async Task OnPageChangedAsync(int page) { _page = page; await LoadAsync(); }
+
+    private async Task Run(Task<OperationResult> action, string ok)
+    {
+        var result = await action;
+        Snackbar.Add(result.Succeeded ? ok : (result.Error ?? "Failed."), result.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+}

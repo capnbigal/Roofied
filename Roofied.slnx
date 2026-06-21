@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Roofied.Application/Roofied.Application.csproj" />
+    <Project Path="src/Roofied.Domain/Roofied.Domain.csproj" />
+    <Project Path="src/Roofied.Infrastructure/Roofied.Infrastructure.csproj" />
+    <Project Path="src/Roofied.Web/Roofied.Web.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Roofied.Tests/Roofied.Tests.csproj" />
+  </Folder>
+</Solution>

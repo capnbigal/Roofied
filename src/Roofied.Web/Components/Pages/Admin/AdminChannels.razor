@@ -1,0 +1,94 @@
+@page "/admin/channels"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanAdministerPlatform)]
+@inject IAdminService Admin
+@inject ISnackbar Snackbar
+
+<PageTitle>Channels</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">Channels</MudText>
+
+<MudGrid>
+    <MudItem xs="12" md="7">
+        @if (_channels is null)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+        }
+        else
+        {
+            <MudTable Items="_channels" Dense="true" Hover="true" Elevation="1">
+                <HeaderContent>
+                    <MudTh>Name</MudTh>
+                    <MudTh>Anon</MudTh>
+                    <MudTh>Comments</MudTh>
+                    <MudTh>Locked</MudTh>
+                    <MudTh></MudTh>
+                </HeaderContent>
+                <RowTemplate>
+                    <MudTd>@context.Name</MudTd>
+                    <MudTd>@(context.AllowAnonymousPosts ? "Yes" : "No")</MudTd>
+                    <MudTd>@(context.CommentsEnabled ? "On" : "Off")</MudTd>
+                    <MudTd>
+                        <MudSwitch T="bool" Value="context.IsLocked" Color="Color.Warning"
+                                   ValueChanged="@(v => SetLockedAsync(context.Id, v))" />
+                    </MudTd>
+                    <MudTd><MudIconButton Icon="@Icons.Material.Filled.Edit" Size="Size.Small" OnClick="@(() => Edit(context))" /></MudTd>
+                </RowTemplate>
+            </MudTable>
+        }
+    </MudItem>
+
+    <MudItem xs="12" md="5">
+        <MudPaper Outlined="true" Class="pa-4">
+            <MudText Typo="Typo.subtitle1">@(_edit.Id is null ? "Add channel" : "Edit channel")</MudText>
+            <MudTextField @bind-Value="_edit.Name" Label="Name" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+            <MudTextField @bind-Value="_edit.Description" Label="Description" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+            <MudTextField @bind-Value="_edit.Guidelines" Label="Posting guidelines" Lines="4" Variant="Variant.Outlined" Margin="Margin.Dense" Class="mb-2" />
+            <MudNumericField @bind-Value="_edit.SortOrder" Label="Order" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:120px" Class="mb-2" />
+            <MudSwitch T="bool" @bind-Value="_edit.AllowAnonymousPosts" Color="Color.Primary" Label="Allow anonymous posts" />
+            <MudSwitch T="bool" @bind-Value="_edit.IsActive" Color="Color.Primary" Label="Active" />
+            <MudSwitch T="bool" @bind-Value="_edit.IsLocked" Color="Color.Warning" Label="Locked" />
+            <MudTooltip Text="Comments stay off until a moderation policy is implemented.">
+                <MudSwitch T="bool" @bind-Value="_edit.CommentsEnabled" Color="Color.Secondary" Label="Comments enabled" />
+            </MudTooltip>
+            <div class="mt-2 d-flex" style="gap:8px;">
+                <MudButton OnClick="SaveAsync" Variant="Variant.Filled" Color="Color.Primary" Size="Size.Small">Save</MudButton>
+                @if (_edit.Id is not null) { <MudButton OnClick="ResetEdit" Variant="Variant.Text" Size="Size.Small">Cancel</MudButton> }
+            </div>
+        </MudPaper>
+    </MudItem>
+</MudGrid>
+
+@code {
+    private IReadOnlyList<AdminChannelDto>? _channels;
+    private ChannelInput _edit = new() { IsActive = true, AllowAnonymousPosts = true };
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync() => _channels = await Admin.GetChannelsAsync();
+
+    private void Edit(AdminChannelDto c) => _edit = new ChannelInput
+    {
+        Id = c.Id, Name = c.Name, Description = c.Description, Guidelines = c.Guidelines,
+        SortOrder = c.SortOrder, IsActive = c.IsActive, IsLocked = c.IsLocked,
+        AllowAnonymousPosts = c.AllowAnonymousPosts, CommentsEnabled = c.CommentsEnabled,
+    };
+
+    private void ResetEdit() => _edit = new ChannelInput { IsActive = true, AllowAnonymousPosts = true };
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_edit.Name)) return;
+        var r = await Admin.UpsertChannelAsync(_edit);
+        Snackbar.Add(r.Succeeded ? "Saved." : (r.Error ?? "Failed."), r.Succeeded ? Severity.Success : Severity.Error);
+        ResetEdit();
+        await LoadAsync();
+    }
+
+    private async Task SetLockedAsync(Guid id, bool locked)
+    {
+        var r = await Admin.SetChannelLockedAsync(id, locked);
+        Snackbar.Add(r.Succeeded ? "Updated." : (r.Error ?? "Failed."), r.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+}

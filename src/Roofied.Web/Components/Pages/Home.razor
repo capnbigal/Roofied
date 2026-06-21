@@ -1,0 +1,196 @@
+@page "/"
+@rendermode InteractiveServer
+@using Roofied.Web.Maps
+@inject IReportService Reports
+@inject ILookupService Lookups
+
+<PageTitle>Roofied — map of moderated reports</PageTitle>
+
+<SafetyNotice />
+
+<div class="d-flex flex-wrap align-center justify-space-between mb-3" style="gap:12px;">
+    <div>
+        <MudText Typo="Typo.h4">Community safety map</MudText>
+        <MudText Typo="Typo.body2" Class="mud-text-secondary">
+            Approved, anonymized reports shown at approximate locations. Locations are intentionally generalized.
+        </MudText>
+    </div>
+    <MudButton Href="/report/new" Variant="Variant.Filled" Color="Color.Primary"
+               StartIcon="@Icons.Material.Filled.AddLocationAlt" Size="Size.Large">Submit a report</MudButton>
+</div>
+
+<MudGrid>
+    <MudItem xs="12" md="8">
+        <MudPaper Elevation="1" Class="pa-1">
+            <LeafletMap @ref="_map" Markers="_markers" Height="72vh" />
+        </MudPaper>
+        <MudText Typo="Typo.caption" Class="mud-text-secondary mt-1">
+            Pins show generalized areas only — never exact locations, times, or identities.
+        </MudText>
+    </MudItem>
+
+    <MudItem xs="12" md="4">
+        <MudPaper Elevation="1" Class="pa-4 mb-3">
+            <MudText Typo="Typo.subtitle1" Class="mb-2">Filters</MudText>
+            <MudTextField @bind-Value="_city" Label="City / area" Variant="Variant.Outlined"
+                          Margin="Margin.Dense" Clearable="true" Class="mb-2" />
+            <MudSelect T="Guid?" Label="Incident type" @bind-Value="_categoryId" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Clearable="true" Class="mb-2">
+                @foreach (var c in _categories)
+                {
+                    <MudSelectItem T="Guid?" Value="@c.Id">@c.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="Guid?" Label="Venue category" @bind-Value="_venueId" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Clearable="true" Class="mb-2">
+                @foreach (var v in _venues)
+                {
+                    <MudSelectItem T="Guid?" Value="@v.Id">@v.Name</MudSelectItem>
+                }
+            </MudSelect>
+            <MudSelect T="SuspicionLevel?" Label="Status" @bind-Value="_suspicion" Variant="Variant.Outlined"
+                       Margin="Margin.Dense" Clearable="true" Class="mb-2">
+                <MudSelectItem T="SuspicionLevel?" Value="@(SuspicionLevel.Suspected)">Suspected</MudSelectItem>
+                <MudSelectItem T="SuspicionLevel?" Value="@(SuspicionLevel.ConfirmedByMedicalTesting)">Confirmed by medical testing</MudSelectItem>
+                <MudSelectItem T="SuspicionLevel?" Value="@(SuspicionLevel.Unknown)">Unknown</MudSelectItem>
+            </MudSelect>
+            <MudDateRangePicker @bind-DateRange="_dateRange" Label="Date range" Variant="Variant.Outlined"
+                                Margin="Margin.Dense" Clearable="true" Class="mb-3" />
+            <div class="d-flex" style="gap:8px;">
+                <MudButton OnClick="ApplyFiltersAsync" Variant="Variant.Filled" Color="Color.Primary" FullWidth="true">Apply</MudButton>
+                <MudButton OnClick="ResetFiltersAsync" Variant="Variant.Outlined" Color="Color.Default">Reset</MudButton>
+            </div>
+        </MudPaper>
+
+        <div class="d-flex align-center justify-space-between mb-2">
+            <MudText Typo="Typo.subtitle1">Latest reports</MudText>
+            <MudChip T="string" Size="Size.Small" Color="Color.Default" Variant="Variant.Text">@_total total</MudChip>
+        </div>
+
+        @if (_loading)
+        {
+            <MudProgressLinear Indeterminate="true" Color="Color.Primary" Class="my-4" />
+        }
+        else if (_list.Count == 0)
+        {
+            <MudPaper Outlined="true" Class="pa-4 text-center mud-text-secondary">
+                <MudIcon Icon="@Icons.Material.Filled.SearchOff" Class="mb-2" />
+                <MudText Typo="Typo.body2">No approved reports match these filters yet.</MudText>
+            </MudPaper>
+        }
+        else
+        {
+            <MudList T="string" Dense="true">
+                @foreach (var r in _list)
+                {
+                    <MudListItem T="string" Href="@($"/reports/{r.Id}")">
+                        <div class="d-flex flex-column">
+                            <div class="d-flex align-center flex-wrap" style="gap:6px;">
+                                <MudChip T="string" Size="Size.Small" Color="Color.Primary" Variant="Variant.Text">@r.IncidentTypeName</MudChip>
+                                @if (!string.IsNullOrWhiteSpace(r.VenueCategoryName))
+                                {
+                                    <MudChip T="string" Size="Size.Small" Variant="Variant.Outlined">@r.VenueCategoryName</MudChip>
+                                }
+                                <SuspicionChip Level="r.SuspicionLevel" />
+                            </div>
+                            <MudText Typo="Typo.body2" Class="mt-1">
+                                @(r.GeneralizedAreaLabel ?? r.City) · @FormatRange(r.IncidentDateFrom, r.IncidentDateTo)
+                            </MudText>
+                            @if (!string.IsNullOrWhiteSpace(r.ShortSummary))
+                            {
+                                <MudText Typo="Typo.caption" Class="mud-text-secondary">@Truncate(r.ShortSummary!, 130)</MudText>
+                            }
+                        </div>
+                    </MudListItem>
+                    <MudDivider />
+                }
+            </MudList>
+
+            @if (_total > _filter.PageSize)
+            {
+                <div class="d-flex justify-center mt-2">
+                    <MudPagination Count="@_pageCount" Selected="_filter.Page" SelectedChanged="OnPageChangedAsync" />
+                </div>
+            }
+        }
+    </MudItem>
+</MudGrid>
+
+@code {
+    private LeafletMap? _map;
+    private IReadOnlyList<MapMarker> _markers = Array.Empty<MapMarker>();
+    private List<PublicReportListItemDto> _list = new();
+    private IReadOnlyList<CategoryDto> _categories = Array.Empty<CategoryDto>();
+    private IReadOnlyList<CategoryDto> _venues = Array.Empty<CategoryDto>();
+
+    private PublicReportFilter _filter = new() { Page = 1, PageSize = 10 };
+    private string? _city;
+    private Guid? _categoryId;
+    private Guid? _venueId;
+    private SuspicionLevel? _suspicion;
+    private DateRange? _dateRange;
+
+    private bool _loading = true;
+    private int _total;
+    private int _pageCount => Math.Max(1, (int)Math.Ceiling(_total / (double)_filter.PageSize));
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await Lookups.GetReportCategoriesAsync();
+        _venues = await Lookups.GetVenueCategoriesAsync();
+        await LoadAsync(refreshMap: false);
+    }
+
+    private async Task LoadAsync(bool refreshMap = true)
+    {
+        _loading = true;
+        StateHasChanged();
+
+        _filter = _filter with
+        {
+            City = string.IsNullOrWhiteSpace(_city) ? null : _city,
+            ReportCategoryId = _categoryId,
+            VenueCategoryId = _venueId,
+            SuspicionLevel = _suspicion,
+            FromDate = _dateRange?.Start is { } s ? DateOnly.FromDateTime(s) : null,
+            ToDate = _dateRange?.End is { } e ? DateOnly.FromDateTime(e) : null,
+        };
+
+        var paged = await Reports.GetPublicListAsync(_filter);
+        _list = paged.Items.ToList();
+        _total = paged.TotalCount;
+
+        var points = await Reports.GetMapPointsAsync(_filter);
+        _markers = points.Select(LeafletMapInterop.FromPoint).ToList();
+
+        _loading = false;
+        StateHasChanged();
+
+        if (refreshMap && _map is not null)
+            await _map.UpdateMarkersAsync(_markers);
+    }
+
+    private async Task ApplyFiltersAsync()
+    {
+        _filter = _filter with { Page = 1 };
+        await LoadAsync();
+    }
+
+    private async Task ResetFiltersAsync()
+    {
+        _city = null; _categoryId = null; _venueId = null; _suspicion = null; _dateRange = null;
+        _filter = new PublicReportFilter { Page = 1, PageSize = 10 };
+        await LoadAsync();
+    }
+
+    private async Task OnPageChangedAsync(int page)
+    {
+        _filter = _filter with { Page = page };
+        await LoadAsync(refreshMap: false);
+    }
+
+    private static string FormatRange(DateOnly from, DateOnly to) =>
+        from == to ? from.ToString("MMM d, yyyy") : $"{from:MMM d} – {to:MMM d, yyyy}";
+
+    private static string Truncate(string s, int max) => s.Length <= max ? s : s[..max] + "…";
+}

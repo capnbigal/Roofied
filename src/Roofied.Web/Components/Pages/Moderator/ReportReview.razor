@@ -1,0 +1,210 @@
+@page "/moderator/reports/{Id:guid}"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanViewRestrictedReportData)]
+@inject IModerationService Moderation
+@inject ISnackbar Snackbar
+
+<PageTitle>Review report</PageTitle>
+
+<MudButton Href="/moderator/reports" StartIcon="@Icons.Material.Filled.ArrowBack" Variant="Variant.Text" Class="mb-2">Back to queue</MudButton>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else if (_r is null)
+{
+    <MudAlert Severity="Severity.Error">Report not found.</MudAlert>
+}
+else
+{
+    <div class="d-flex flex-wrap align-center" style="gap:8px;">
+        <MudText Typo="Typo.h5">@_r.ReferenceCode</MudText>
+        <ReportStatusChip Status="_r.Status" />
+        <MudChip T="string" Size="Size.Small" Variant="Variant.Text">@_r.Visibility</MudChip>
+    </div>
+
+    <MudGrid Class="mt-1">
+        <!-- Restricted moderator info -->
+        <MudItem xs="12" md="6">
+            <MudPaper Outlined="true" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Color="Color.Error"><MudIcon Icon="@Icons.Material.Filled.Lock" Class="mr-1" />Restricted — moderators only</MudText>
+
+                @if (_r.AutoFlags.Count > 0)
+                {
+                    <MudAlert Severity="Severity.Warning" Dense="true" Class="my-2">
+                        Auto-detected potential PII / accusations:
+                        <ul class="mb-0">@foreach (var f in _r.AutoFlags) { <li>@f</li> }</ul>
+                    </MudAlert>
+                }
+
+                <MudField Label="Raw narrative" Variant="Variant.Text" Class="mt-2">@(_r.RawNarrative ?? "—")</MudField>
+                <MudField Label="Symptoms" Variant="Variant.Text" Class="mt-2">@(_r.SymptomsDescription ?? "—")</MudField>
+                <MudGrid Class="mt-1">
+                    <MudItem xs="6"><MudField Label="Exact time" Variant="Variant.Text">@(_r.ExactIncidentUtc?.ToString("g") ?? "—")</MudField></MudItem>
+                    <MudItem xs="6"><MudField Label="Exact coords" Variant="Variant.Text">@CoordText()</MudField></MudItem>
+                </MudGrid>
+                <MudField Label="Private contact" Variant="Variant.Text" Class="mt-1">
+                    @(string.IsNullOrWhiteSpace(_r.PrivateContactValue) ? "—" : $"{_r.PrivateContactMethod}: {_r.PrivateContactValue}")
+                </MudField>
+            </MudPaper>
+
+            <!-- Notes -->
+            <MudPaper Outlined="true" Class="pa-4 mt-3">
+                <MudText Typo="Typo.subtitle1">Moderation notes</MudText>
+                <MudTextField @bind-Value="_note" Label="Add an internal note" Lines="2" Variant="Variant.Outlined" Class="mt-2" />
+                <MudButton OnClick="AddNoteAsync" Size="Size.Small" Variant="Variant.Outlined" Class="mt-1">Add note</MudButton>
+                <MudList T="string" Dense="true" Class="mt-2">
+                    @foreach (var n in _r.Notes)
+                    {
+                        <MudListItem T="string">
+                            <MudText Typo="Typo.body2">@n.Text</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@n.CreatedUtc.ToString("g")</MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+            </MudPaper>
+        </MudItem>
+
+        <!-- Public-safe preview + actions -->
+        <MudItem xs="12" md="6">
+            <MudPaper Outlined="true" Class="pa-4">
+                <MudText Typo="Typo.subtitle1" Color="Color.Success"><MudIcon Icon="@Icons.Material.Filled.Public" Class="mr-1" />Public-safe preview &amp; publish</MudText>
+
+                <MudTextField @bind-Value="_publicSummary" Label="Public summary (shown publicly)" Lines="4"
+                              Variant="Variant.Outlined" Class="mt-2" Counter="4000" MaxLength="4000"
+                              HelperText="Write a privacy-safe summary. Never include names, exact location/time, or accusations." />
+                <MudButton OnClick="RedactAsync" Size="Size.Small" Variant="Variant.Text" Class="mb-2">Save as redacted narrative draft</MudButton>
+
+                <MudTextField @bind-Value="_areaLabel" Label="Generalized area label" Variant="Variant.Outlined" Class="mb-2" />
+                <MudTextField @bind-Value="_tagsCsv" Label="Safety tags (comma-separated)" Variant="Variant.Outlined" Class="mb-2" />
+
+                <MudText Typo="Typo.body2" Class="mt-2">Map precision: @_precisionMeters m grid</MudText>
+                <MudSlider T="int" @bind-Value="_precisionMeters" Min="500" Max="5000" Step="250" Color="Color.Primary" />
+                <MudButton OnClick="AdjustPrecisionAsync" Size="Size.Small" Variant="Variant.Text">Apply precision to map point</MudButton>
+
+                @if (_r.ApproxLatitude.HasValue)
+                {
+                    <MudText Typo="Typo.caption" Class="mud-text-secondary d-block">
+                        Public point: @_r.ApproxLatitude?.ToString("F3"), @_r.ApproxLongitude?.ToString("F3") (@_r.PrecisionMeters m)
+                    </MudText>
+                }
+                else
+                {
+                    <MudAlert Severity="Severity.Info" Dense="true" Class="mt-1">No precise location was provided; this report will be listed without a map pin.</MudAlert>
+                }
+
+                <MudDivider Class="my-3" />
+                <div class="d-flex flex-wrap" style="gap:8px;">
+                    <MudButton OnClick="ApproveAsync" Disabled="_busy" Color="Color.Success" Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.CheckCircle">Approve &amp; publish</MudButton>
+                    <MudButton OnClick="ArchiveAsync" Disabled="_busy" Color="Color.Default" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Archive">Archive</MudButton>
+                </div>
+
+                <MudTextField @bind-Value="_reason" Label="Reason / message (for reject or clarification)" Lines="2" Variant="Variant.Outlined" Class="mt-3" />
+                <div class="d-flex flex-wrap mt-1" style="gap:8px;">
+                    <MudButton OnClick="RequestClarificationAsync" Disabled="_busy" Color="Color.Warning" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.HelpOutline">Request clarification</MudButton>
+                    <MudButton OnClick="RejectAsync" Disabled="_busy" Color="Color.Error" Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Block">Reject</MudButton>
+                </div>
+            </MudPaper>
+
+            <!-- History -->
+            <MudPaper Outlined="true" Class="pa-4 mt-3">
+                <MudText Typo="Typo.subtitle1">Status history</MudText>
+                <MudList T="string" Dense="true">
+                    @foreach (var h in _r.StatusHistory)
+                    {
+                        <MudListItem T="string">
+                            <MudText Typo="Typo.body2">@(h.FromStatus?.ToString() ?? "—") → @h.ToStatus</MudText>
+                            <MudText Typo="Typo.caption" Class="mud-text-secondary">@h.CreatedUtc.ToString("g") @(string.IsNullOrWhiteSpace(h.Reason) ? "" : $"· {h.Reason}")</MudText>
+                        </MudListItem>
+                    }
+                </MudList>
+            </MudPaper>
+        </MudItem>
+    </MudGrid>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private ModeratorReportDetailDto? _r;
+    private bool _loading = true;
+    private bool _busy;
+
+    private string? _publicSummary;
+    private string? _areaLabel;
+    private string? _tagsCsv;
+    private int _precisionMeters = 1500;
+    private string? _reason;
+    private string? _note;
+
+    protected override async Task OnParametersSetAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _r = await Moderation.GetReportForModerationAsync(Id);
+        if (_r is not null)
+        {
+            _publicSummary = _r.PublicSummary ?? _r.RedactedNarrative;
+            _areaLabel = _r.GeneralizedAreaLabel;
+            _tagsCsv = string.Join(", ", _r.SafetyTags);
+            _precisionMeters = _r.PrecisionMeters ?? 1500;
+        }
+        _loading = false;
+    }
+
+    private string CoordText() =>
+        _r?.ExactLatitude is { } lat && _r.ExactLongitude is { } lon ? $"{lat:F5}, {lon:F5}" : "—";
+
+    private async Task ApproveAsync()
+    {
+        _busy = true;
+        var input = new ApproveReportInput
+        {
+            ReportId = Id,
+            PublicSummary = _publicSummary,
+            GeneralizedAreaLabel = _areaLabel,
+            PrecisionMetersOverride = _precisionMeters,
+            SafetyTags = (_tagsCsv ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList(),
+        };
+        await RunAsync(() => Moderation.ApproveReportAsync(input), "Report approved and published.");
+    }
+
+    private Task RejectAsync() => RunAsync(() => Moderation.RejectReportAsync(Id, _reason ?? "Rejected."), "Report rejected.");
+    private Task RequestClarificationAsync() => RunAsync(() => Moderation.RequestClarificationAsync(Id, _reason ?? "More information needed."), "Clarification requested.");
+    private Task ArchiveAsync() => RunAsync(() => Moderation.ArchiveReportAsync(Id, _reason ?? "Archived."), "Report archived.");
+    private Task AdjustPrecisionAsync() => RunAsync(() => Moderation.AdjustPrecisionAsync(Id, _precisionMeters), "Map precision updated.");
+
+    private async Task RedactAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_publicSummary)) { Snackbar.Add("Nothing to save.", Severity.Info); return; }
+        await RunAsync(() => Moderation.RedactNarrativeAsync(Id, _publicSummary!), "Redacted narrative saved.");
+    }
+
+    private async Task AddNoteAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_note)) return;
+        await RunAsync(() => Moderation.AddNoteAsync(Id, _note!), "Note added.");
+        _note = "";
+    }
+
+    private async Task RunAsync(Func<Task<OperationResult>> action, string successMessage)
+    {
+        _busy = true;
+        try
+        {
+            var result = await action();
+            if (result.Succeeded)
+            {
+                Snackbar.Add(successMessage, Severity.Success);
+                await LoadAsync();
+            }
+            else
+            {
+                Snackbar.Add(result.Error ?? "Action failed.", Severity.Error);
+            }
+        }
+        finally { _busy = false; }
+    }
+}

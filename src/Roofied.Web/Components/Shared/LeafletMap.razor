@@ -1,0 +1,41 @@
+@using Roofied.Web.Maps
+@implements IAsyncDisposable
+@inject IMapInterop Map
+
+<div id="@_elementId" style="height:@Height; width:100%; border-radius:8px; overflow:hidden;"
+     role="application" aria-label="Map of approximate, moderated reports"></div>
+
+@code {
+    [Parameter] public IReadOnlyList<MapMarker> Markers { get; set; } = Array.Empty<MapMarker>();
+    [Parameter] public double CenterLat { get; set; } = 39.5;
+    [Parameter] public double CenterLng { get; set; } = -98.35;
+    [Parameter] public int Zoom { get; set; } = 4;
+    [Parameter] public string Height { get; set; } = "70vh";
+
+    private readonly string _elementId = "map-" + Guid.NewGuid().ToString("N");
+    private bool _initialized;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await Map.InitAsync(_elementId, CenterLat, CenterLng, Zoom);
+            _initialized = true;
+            await Map.SetPointsAsync(_elementId, Markers);
+        }
+    }
+
+    /// <summary>Pushes a new marker set to the already-initialized map.</summary>
+    public async Task UpdateMarkersAsync(IReadOnlyList<MapMarker> markers)
+    {
+        Markers = markers;
+        if (_initialized)
+            await Map.SetPointsAsync(_elementId, markers);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_initialized)
+            await Map.DisposeMapAsync(_elementId);
+    }
+}

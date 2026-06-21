@@ -1,0 +1,98 @@
+@page "/admin/users"
+@rendermode InteractiveServer
+@attribute [Authorize(Policy = PolicyNames.CanAdministerPlatform)]
+@inject IUserAdminService Users
+@inject ISnackbar Snackbar
+
+<PageTitle>Users &amp; roles</PageTitle>
+
+<MudText Typo="Typo.h4" Class="mb-3">Users &amp; roles</MudText>
+
+<MudPaper Outlined="true" Class="pa-3 mb-3 d-flex" style="gap:8px;">
+    <MudTextField @bind-Value="_search" Label="Search by email" Variant="Variant.Outlined" Margin="Margin.Dense" Clearable="true" />
+    <MudButton OnClick="SearchAsync" Variant="Variant.Filled" Color="Color.Primary" Class="align-self-center">Search</MudButton>
+</MudPaper>
+
+@if (_loading)
+{
+    <MudProgressLinear Indeterminate="true" Color="Color.Primary" />
+}
+else
+{
+    <MudTable Items="_items" Hover="true" Dense="true" Elevation="1">
+        <HeaderContent>
+            <MudTh>Email</MudTh>
+            <MudTh>Display name</MudTh>
+            <MudTh>Roles</MudTh>
+            <MudTh>Status</MudTh>
+            <MudTh>Actions</MudTh>
+        </HeaderContent>
+        <RowTemplate>
+            <MudTd>@context.Email</MudTd>
+            <MudTd>@(context.DisplayName ?? "—")</MudTd>
+            <MudTd>
+                @foreach (var role in RoleNames.All)
+                {
+                    <MudChip T="string" Size="Size.Small"
+                             Color="@(context.Roles.Contains(role) ? Color.Primary : Color.Default)"
+                             Variant="@(context.Roles.Contains(role) ? Variant.Filled : Variant.Outlined)"
+                             OnClick="@(() => ToggleRoleAsync(context, role))">@role</MudChip>
+                }
+            </MudTd>
+            <MudTd>
+                @if (context.IsDisabled) { <MudChip T="string" Size="Size.Small" Color="Color.Error">Disabled</MudChip> }
+                else { <MudChip T="string" Size="Size.Small" Color="Color.Success">Active</MudChip> }
+            </MudTd>
+            <MudTd>
+                <MudButton OnClick="@(() => SetDisabledAsync(context, !context.IsDisabled))" Size="Size.Small" Variant="Variant.Text"
+                           Color="@(context.IsDisabled ? Color.Success : Color.Error)">
+                    @(context.IsDisabled ? "Enable" : "Disable")
+                </MudButton>
+            </MudTd>
+        </RowTemplate>
+    </MudTable>
+
+    <div class="d-flex justify-center mt-3">
+        <MudPagination Count="@_pageCount" Selected="_page" SelectedChanged="OnPageChangedAsync" />
+    </div>
+}
+
+@code {
+    private List<AdminUserDto> _items = new();
+    private string? _search;
+    private int _page = 1;
+    private const int PageSize = 20;
+    private int _total;
+    private int _pageCount => Math.Max(1, (int)Math.Ceiling(_total / (double)PageSize));
+    private bool _loading = true;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        var paged = await Users.GetUsersAsync(_search, _page, PageSize);
+        _items = paged.Items.ToList();
+        _total = paged.TotalCount;
+        _loading = false;
+    }
+
+    private async Task SearchAsync() { _page = 1; await LoadAsync(); }
+    private async Task OnPageChangedAsync(int page) { _page = page; await LoadAsync(); }
+
+    private async Task ToggleRoleAsync(AdminUserDto user, string role)
+    {
+        var roles = user.Roles.ToList();
+        if (roles.Contains(role)) roles.Remove(role); else roles.Add(role);
+        var result = await Users.SetRolesAsync(user.Id, roles);
+        Snackbar.Add(result.Succeeded ? "Roles updated." : (result.Error ?? "Failed."), result.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+
+    private async Task SetDisabledAsync(AdminUserDto user, bool disabled)
+    {
+        var result = await Users.SetDisabledAsync(user.Id, disabled);
+        Snackbar.Add(result.Succeeded ? "Updated." : (result.Error ?? "Failed."), result.Succeeded ? Severity.Success : Severity.Error);
+        await LoadAsync();
+    }
+}

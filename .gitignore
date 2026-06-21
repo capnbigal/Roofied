@@ -1,0 +1,26 @@
+# Build output
+bin/
+obj/
+[Dd]ebug/
+[Rr]elease/
+*.user
+*.suo
+.vs/
+
+# Logs
+logs/
+*.log
+
+# Local secrets / environment overrides (NEVER commit secrets)
+appsettings.*.local.json
+secrets.json
+*.pfx
+.env
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Publish output
+publish/
+*.publishsettings
