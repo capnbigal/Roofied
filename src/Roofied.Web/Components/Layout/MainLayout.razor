@@ -7,13 +7,42 @@
 
 <MudLayout>
     <MudAppBar Elevation="1" Color="Color.Surface">
-        <MudIconButton Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Edge="Edge.Start"
-                       OnClick="@ToggleDrawer" aria-label="Toggle navigation" />
-        <MudLink Href="/" Underline="Underline.None" Color="Color.Inherit" Class="d-flex align-center">
+        <MudLink Href="/" Underline="Underline.None" Color="Color.Inherit" Class="d-flex align-center mr-4">
             <MudIcon Icon="@Icons.Material.Filled.Shield" Class="mr-2" />
             <MudText Typo="Typo.h6">Roofied</MudText>
         </MudLink>
+
+        @* Horizontal top navigation (desktop) *@
+        <div class="d-none d-lg-flex align-center" style="gap:2px;">
+            <MudButton Href="/" StartIcon="@Icons.Material.Filled.Map" Color="Color.Inherit">Map</MudButton>
+            <MudButton Href="/report/new" StartIcon="@Icons.Material.Filled.AddLocationAlt" Color="Color.Inherit">Submit a report</MudButton>
+            <MudButton Href="/reports" StartIcon="@Icons.Material.Filled.List" Color="Color.Inherit">Browse</MudButton>
+            <MudButton Href="/channels" StartIcon="@Icons.Material.Filled.Forum" Color="Color.Inherit">Channels</MudButton>
+            <MudButton Href="/resources" StartIcon="@Icons.Material.Filled.Emergency" Color="Color.Inherit">Resources</MudButton>
+
+            <AuthorizeView Policy="@PolicyNames.CanModerateReports" Context="mod">
+                <MudMenu StartIcon="@Icons.Material.Filled.Gavel" EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                         Label="Moderation" Color="Color.Inherit" Variant="Variant.Text">
+                    <MudMenuItem Href="/moderator" Icon="@Icons.Material.Filled.Dashboard">Dashboard</MudMenuItem>
+                    <MudMenuItem Href="/moderator/reports" Icon="@Icons.Material.Filled.FactCheck">Report queue</MudMenuItem>
+                    <MudMenuItem Href="/moderator/posts" Icon="@Icons.Material.Filled.Forum">Post queue</MudMenuItem>
+                    <MudMenuItem Href="/moderator/flags" Icon="@Icons.Material.Filled.Flag">Flags</MudMenuItem>
+                </MudMenu>
+            </AuthorizeView>
+            <AuthorizeView Policy="@PolicyNames.CanAdministerPlatform" Context="adm">
+                <MudMenu StartIcon="@Icons.Material.Filled.AdminPanelSettings" EndIcon="@Icons.Material.Filled.ArrowDropDown"
+                         Label="Admin" Color="Color.Inherit" Variant="Variant.Text">
+                    <MudMenuItem Href="/admin" Icon="@Icons.Material.Filled.Insights">Overview</MudMenuItem>
+                    <MudMenuItem Href="/admin/users" Icon="@Icons.Material.Filled.People">Users &amp; roles</MudMenuItem>
+                    <MudMenuItem Href="/admin/categories" Icon="@Icons.Material.Filled.Category">Categories</MudMenuItem>
+                    <MudMenuItem Href="/admin/channels" Icon="@Icons.Material.Filled.Tune">Channels</MudMenuItem>
+                    <MudMenuItem Href="/admin/resources" Icon="@Icons.Material.Filled.MenuBook">Resources</MudMenuItem>
+                </MudMenu>
+            </AuthorizeView>
+        </div>
+
         <MudSpacer />
+
         <MudButton Href="/resources" StartIcon="@Icons.Material.Filled.Emergency" Color="Color.Error"
                    Variant="Variant.Filled" Class="mr-2">Get Help Now</MudButton>
         <MudTooltip Text="Toggle light/dark mode">
@@ -34,12 +63,23 @@
                 <MudButton Href="/Account/Login" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Login">Sign in</MudButton>
             </NotAuthorized>
         </AuthorizeView>
-    </MudAppBar>
 
-    <MudDrawer @bind-Open="_drawerOpen" Elevation="1" ClipMode="DrawerClipMode.Always"
-               Variant="DrawerVariant.Persistent" Breakpoint="Breakpoint.Sm">
-        <NavMenu />
-    </MudDrawer>
+        @* Compact menu for small screens *@
+        <MudMenu Icon="@Icons.Material.Filled.Menu" Color="Color.Inherit" Class="d-flex d-lg-none" AriaLabel="Navigation menu">
+            <MudMenuItem Href="/" Icon="@Icons.Material.Filled.Map">Map &amp; latest reports</MudMenuItem>
+            <MudMenuItem Href="/report/new" Icon="@Icons.Material.Filled.AddLocationAlt">Submit a report</MudMenuItem>
+            <MudMenuItem Href="/reports" Icon="@Icons.Material.Filled.List">Browse reports</MudMenuItem>
+            <MudMenuItem Href="/channels" Icon="@Icons.Material.Filled.Forum">Community channels</MudMenuItem>
+            <MudMenuItem Href="/resources" Icon="@Icons.Material.Filled.Emergency">Get help / resources</MudMenuItem>
+            <AuthorizeView Policy="@PolicyNames.CanModerateReports" Context="modm">
+                <MudDivider />
+                <MudMenuItem Href="/moderator" Icon="@Icons.Material.Filled.Gavel">Moderation</MudMenuItem>
+            </AuthorizeView>
+            <AuthorizeView Policy="@PolicyNames.CanAdministerPlatform" Context="admm">
+                <MudMenuItem Href="/admin" Icon="@Icons.Material.Filled.AdminPanelSettings">Administration</MudMenuItem>
+            </AuthorizeView>
+        </MudMenu>
+    </MudAppBar>
 
     <MudMainContent>
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
@@ -55,7 +95,6 @@
 </div>
 
 @code {
-    private bool _drawerOpen = true;
     private bool _isDarkMode;
     private MudThemeProvider _themeProvider = null!;
 
@@ -79,6 +118,4 @@
             Default = new DefaultTypography { FontFamily = new[] { "Roboto", "Helvetica", "Arial", "sans-serif" } },
         },
     };
-
-    private void ToggleDrawer() => _drawerOpen = !_drawerOpen;
 }
