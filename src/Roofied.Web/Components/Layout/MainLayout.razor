@@ -44,7 +44,10 @@
         <MudSpacer />
 
         <MudButton Href="/resources" StartIcon="@Icons.Material.Filled.Emergency" Color="Color.Error"
-                   Variant="Variant.Filled" Class="mr-2">Get Help Now</MudButton>
+                   Variant="Variant.Filled" Size="Size.Large" Class="mr-2"
+                   Style="font-weight:700; letter-spacing:.3px; box-shadow:0 2px 12px rgba(211,47,47,.55);">
+            Get Help Now
+        </MudButton>
         <MudTooltip Text="Toggle light/dark mode">
             <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            Color="Color.Inherit" OnClick="@(() => _isDarkMode = !_isDarkMode)" aria-label="Toggle theme" />
@@ -71,6 +74,7 @@
             <MudMenuItem Href="/reports" Icon="@Icons.Material.Filled.List">Browse reports</MudMenuItem>
             <MudMenuItem Href="/channels" Icon="@Icons.Material.Filled.Forum">Community channels</MudMenuItem>
             <MudMenuItem Href="/resources" Icon="@Icons.Material.Filled.Emergency">Get help / resources</MudMenuItem>
+            <MudMenuItem Href="/about" Icon="@Icons.Material.Filled.Favorite">About</MudMenuItem>
             <AuthorizeView Policy="@PolicyNames.CanModerateReports" Context="modm">
                 <MudDivider />
                 <MudMenuItem Href="/moderator" Icon="@Icons.Material.Filled.Gavel">Moderation</MudMenuItem>
@@ -85,6 +89,13 @@
         <MudContainer MaxWidth="MaxWidth.ExtraLarge" Class="py-4">
             @Body
         </MudContainer>
+        <footer class="py-4 px-4 mt-2" style="text-align:center;">
+            <MudText Typo="Typo.caption" Class="mud-text-secondary">
+                Roofied — a community safety project. ·
+                <MudLink Href="/about" Typo="Typo.caption">About</MudLink> ·
+                <MudLink Href="/resources" Typo="Typo.caption">Get help &amp; resources</MudLink>
+            </MudText>
+        </footer>
     </MudMainContent>
 </MudLayout>
 
