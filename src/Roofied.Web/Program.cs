@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Components.Authorization;
+using Microsoft.AspNetCore.DataProtection;
 using Microsoft.AspNetCore.Identity;
 using MudBlazor.Services;
 using Roofied.Domain.Identity;
@@ -60,6 +61,19 @@ builder.Services.AddIdentityCore<ApplicationUser>(options =>
     .AddDefaultTokenProviders();
 
 builder.Services.AddSingleton<IEmailSender<ApplicationUser>, IdentityNoOpEmailSender>();
+
+// Data Protection keys protect auth cookies and antiforgery tokens. By default they live in a
+// per-container directory and are lost when the container is recreated (every deploy), logging
+// everyone out. When a persistent path is configured (DataProtection:KeysPath — set to a mounted
+// volume in production), keys survive restarts/deploys. In development the path is unset, so the
+// default ephemeral location is used, which is fine.
+var dataProtection = builder.Services.AddDataProtection().SetApplicationName("Roofied");
+var keysPath = builder.Configuration["DataProtection:KeysPath"];
+if (!string.IsNullOrWhiteSpace(keysPath))
+{
+    Directory.CreateDirectory(keysPath);
+    dataProtection.PersistKeysToFileSystem(new DirectoryInfo(keysPath));
+}
 
 // Request-scoped current-user accessor used by the application services.
 builder.Services.AddScoped<ClientSession>();
