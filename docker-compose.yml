@@ -1,0 +1,59 @@
+name: roofied
+
+# Roofied runs as a single app container on the alibalib platform. It does NOT
+# run its own SQL Server — it shares the existing AWBlazor SQL Server (container
+# "awblazor-sqlserver" on the external "awblazor_default" network) and uses its
+# own database, "Roofied". The app auto-migrates + auto-seeds that DB on startup.
+#
+# Deploy on the droplet:
+#   cd /opt/roofied
+#   sudo docker compose pull app
+#   sudo docker compose up -d app
+# Roll back to a specific build:  APP_TAG=<short-sha> sudo docker compose up -d app
+
+services:
+  app:
+    # Built + pushed by .github/workflows/build-and-push-image.yml on push to main.
+    image: ghcr.io/capnbigal/roofied:${APP_TAG:-latest}
+    container_name: roofied-app
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ASPNETCORE_FORWARDEDHEADERS_ENABLED: "true"
+      # Shares the AWBlazor SQL Server; separate database. SA_PASSWORD comes from
+      # .env (use the SAME value as the AWBlazor stack's SA_PASSWORD).
+      ConnectionStrings__DefaultConnection: "Server=awblazor-sqlserver,1433;Database=Roofied;User Id=sa;Password=${SA_PASSWORD:?set SA_PASSWORD in .env};TrustServerCertificate=True;Encrypt=False;MultipleActiveResultSets=True"
+      # Required in Production (StartupValidation aborts startup without it): a
+      # strong secret (>=16 chars) used to hash client IPs for abuse limiting.
+      Security__IpHashSalt: "${IP_HASH_SALT:?set IP_HASH_SALT in .env}"
+      # Seed administrator (optional but recommended). If blank, no admin is created.
+      SeedAdmin__Email: "${SEED_ADMIN_EMAIL:-}"
+      SeedAdmin__Password: "${SEED_ADMIN_PASSWORD:-}"
+      # Observability — opt-in. Roofied logs via Serilog; OTLP export can be wired
+      # later. Empty endpoint = no export.
+      OTEL_SERVICE_NAME: roofied
+      OTEL_EXPORTER_OTLP_PROTOCOL: grpc
+      OTEL_EXPORTER_OTLP_ENDPOINT: "${OTLP_ENDPOINT:-}"
+      OTEL_EXPORTER_OTLP_HEADERS: "x-otlp-api-key=${OTLP_API_KEY:-}"
+    ports:
+      # localhost only — nginx terminates TLS and reverse-proxies to this.
+      - "127.0.0.1:8084:8080"
+    volumes:
+      - roofieddata:/app/App_Data
+      - roofiedlogs:/app/logs
+    networks:
+      - awblazor
+    restart: unless-stopped
+
+networks:
+  # Join the network the AWBlazor stack already created so we can reach
+  # "awblazor-sqlserver" by name (network: awblazor_default).
+  awblazor:
+    external: true
+    name: awblazor_default
+
+volumes:
+  roofieddata:
+    name: roofied-appdata
+  roofiedlogs:
+    name: roofied-logs
