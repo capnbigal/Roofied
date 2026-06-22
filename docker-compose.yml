@@ -29,6 +29,14 @@ services:
       # Seed administrator (optional but recommended). If blank, no admin is created.
       SeedAdmin__Email: "${SEED_ADMIN_EMAIL:-}"
       SeedAdmin__Password: "${SEED_ADMIN_PASSWORD:-}"
+      # CAPTCHA (Cloudflare Turnstile). appsettings.Production.json enables it by
+      # default; production startup aborts if enabled without a SecretKey. Driven
+      # by .env here — defaults to OFF (rate-limiting by hashed IP still applies).
+      # Provide CAPTCHA_SITE_KEY + CAPTCHA_SECRET_KEY and set CAPTCHA_ENABLED=true
+      # to turn it on.
+      Captcha__Enabled: "${CAPTCHA_ENABLED:-false}"
+      Captcha__SiteKey: "${CAPTCHA_SITE_KEY:-}"
+      Captcha__SecretKey: "${CAPTCHA_SECRET_KEY:-}"
       # Observability — opt-in. Roofied logs via Serilog; OTLP export can be wired
       # later. Empty endpoint = no export.
       OTEL_SERVICE_NAME: roofied
