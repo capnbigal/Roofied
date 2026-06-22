@@ -43,11 +43,17 @@
 
         <MudSpacer />
 
+        @* Emergency CTA — full button on tablet/desktop (sm+), compact icon on phones (xs) *@
         <MudButton Href="/resources" StartIcon="@Icons.Material.Filled.Emergency" Color="Color.Error"
-                   Variant="Variant.Filled" Size="Size.Large" Class="mr-2"
-                   Style="font-weight:700; letter-spacing:.3px; box-shadow:0 2px 12px rgba(211,47,47,.55);">
+                   Variant="Variant.Filled" Size="Size.Large" Class="mr-2 d-none d-sm-flex"
+                   Style="font-weight:700; letter-spacing:.3px; white-space:nowrap; box-shadow:0 2px 12px rgba(211,47,47,.55);">
             Get Help Now
         </MudButton>
+        <MudTooltip Text="Get help now">
+            <MudIconButton Href="/resources" Icon="@Icons.Material.Filled.Emergency" Color="Color.Error"
+                           Variant="Variant.Filled" Class="mr-1 d-inline-flex d-sm-none" aria-label="Get help now" />
+        </MudTooltip>
+
         <MudTooltip Text="Toggle light/dark mode">
             <MudIconButton Icon="@(_isDarkMode ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            Color="Color.Inherit" OnClick="@(() => _isDarkMode = !_isDarkMode)" aria-label="Toggle theme" />
@@ -63,7 +69,11 @@
                 </MudMenu>
             </Authorized>
             <NotAuthorized>
-                <MudButton Href="/Account/Login" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Login">Sign in</MudButton>
+                @* Full button on tablet/desktop (sm+), compact icon on phones (xs) *@
+                <MudButton Href="/Account/Login" Color="Color.Inherit" StartIcon="@Icons.Material.Filled.Login"
+                           Class="d-none d-sm-flex" Style="white-space:nowrap;">Sign in</MudButton>
+                <MudIconButton Href="/Account/Login" Icon="@Icons.Material.Filled.Login" Color="Color.Inherit"
+                               Class="d-inline-flex d-sm-none" aria-label="Sign in" />
             </NotAuthorized>
         </AuthorizeView>
 
