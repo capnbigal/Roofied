@@ -6,16 +6,53 @@ window.roofiedMap = (function () {
     // Best-effort: after the initial whole-globe view, ask the browser for the user's
     // location and zoom in to their area. If permission is denied or geolocation is
     // unavailable, the globe (or report bounds) view is kept. `onLocated` flags success.
+    //
+    // Note: mobile browsers only expose geolocation on a SECURE context (HTTPS, or desktop
+    // localhost). Over plain http to a LAN IP, navigator.geolocation is blocked on phones.
     function geolocate(map, zoom, onLocated) {
-        if (!navigator.geolocation) return;
+        if (!navigator.geolocation) {
+            console.debug("Geolocation API unavailable (insecure context?).");
+            return;
+        }
         navigator.geolocation.getCurrentPosition(
             function (pos) {
                 map.setView([pos.coords.latitude, pos.coords.longitude], zoom || 11);
                 if (typeof onLocated === "function") onLocated();
             },
-            function () { /* permission denied or unavailable: keep the default view */ },
-            { enableHighAccuracy: false, timeout: 6000, maximumAge: 600000 }
+            function (err) {
+                // 1 = permission denied, 2 = position unavailable, 3 = timeout
+                console.debug("Geolocation unavailable:", err && err.code, err && err.message);
+            },
+            // Phones often need longer than a few seconds for a first fix.
+            { enableHighAccuracy: false, timeout: 15000, maximumAge: 300000 }
         );
+    }
+
+    // Adds a tap-friendly "center on my location" button to the map. Useful on mobile and as a
+    // retry if the user missed/denied the initial prompt.
+    function addLocateControl(map, zoom) {
+        if (!window.L || !navigator.geolocation) return;
+        const Ctl = L.Control.extend({
+            options: { position: "topleft" },
+            onAdd: function () {
+                const container = L.DomUtil.create("div", "leaflet-bar leaflet-control");
+                const link = L.DomUtil.create("a", "", container);
+                link.href = "#";
+                link.title = "Center on my location";
+                link.setAttribute("role", "button");
+                link.setAttribute("aria-label", "Center on my location");
+                link.innerHTML = "&#x1F4CD;"; // 📍
+                link.style.fontSize = "16px";
+                link.style.lineHeight = "30px";
+                link.style.textAlign = "center";
+                L.DomEvent.on(link, "click", function (e) {
+                    L.DomEvent.stop(e);
+                    geolocate(map, zoom);
+                });
+                return container;
+            },
+        });
+        map.addControl(new Ctl());
     }
 
     function init(elementId, options) {
@@ -47,6 +84,7 @@ window.roofiedMap = (function () {
         setTimeout(() => map.invalidateSize(), 200);
 
         // Start on the whole globe, then (after the permission prompt) zoom in to the user's area.
+        addLocateControl(map, 12);
         geolocate(map, 11);
     }
 
@@ -119,6 +157,7 @@ window.roofiedMap = (function () {
 
         // Start on the whole globe, then zoom in to the user's area after the permission prompt
         // so they can pick a nearby point (no marker auto-placed).
+        addLocateControl(map, 14);
         geolocate(map, 13);
     }
 
